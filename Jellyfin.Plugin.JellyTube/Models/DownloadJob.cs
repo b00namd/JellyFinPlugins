@@ -45,4 +45,10 @@ public class DownloadJob
 
     /// <summary>Gets or sets an optional download directory override. Overrides the global DownloadPath for this job.</summary>
     public string? OverrideDownloadPath { get; set; }
+
+    /// <summary>Gets or sets the maximum video age in days for playlist downloads (0 = use global/unlimited).</summary>
+    public int MaxAgeDays { get; set; } = 0;
+
+    /// <summary>Gets or sets a value indicating whether watched files should be deleted for this job.</summary>
+    public bool DeleteWatched { get; set; } = false;
 }

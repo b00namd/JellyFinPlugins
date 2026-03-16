@@ -98,11 +98,12 @@ public class YtDlpService
         string outputDir,
         IProgress<DownloadProgress>? progress,
         CancellationToken ct,
-        string? archivePath = null)
+        string? archivePath = null,
+        int maxAgeDays = 0)
     {
         var ytdl = CreateClient(outputDir);
         var config = Plugin.Instance!.Configuration;
-        var opts = BuildSubtitleOptions(playlist: true, archivePath: archivePath);
+        var opts = BuildSubtitleOptions(playlist: true, archivePath: archivePath, maxAgeDays: maxAgeDays);
 
         try
         {
@@ -158,7 +159,7 @@ public class YtDlpService
             _ => DownloadMergeFormat.Mp4
         };
 
-    private static OptionSet BuildSubtitleOptions(bool playlist, string? archivePath = null)
+    private static OptionSet BuildSubtitleOptions(bool playlist, string? archivePath = null, int maxAgeDays = 0)
     {
         var config = Plugin.Instance!.Configuration;
 
@@ -172,10 +173,11 @@ public class YtDlpService
             NoPlaylist = !playlist
         };
 
-        // Limit playlist by date if configured
-        if (playlist && config.PlaylistMaxAgeDays > 0)
+        // Per-entry maxAgeDays takes priority; fall back to global setting
+        var effectiveMaxAge = maxAgeDays > 0 ? maxAgeDays : config.PlaylistMaxAgeDays;
+        if (playlist && effectiveMaxAge > 0)
         {
-            opts.DateAfter = DateTime.UtcNow.AddDays(-config.PlaylistMaxAgeDays);
+            opts.DateAfter = DateTime.UtcNow.AddDays(-effectiveMaxAge);
         }
 
         // Use archive file to skip already-downloaded (or deleted) videos

@@ -87,13 +87,18 @@
         .yt-input-row { display: flex; gap: 0.5em; align-items: flex-end; }
         .yt-input-row > div { flex: 1; }
         .yt-entry-row {
-            display: flex; gap: 0.5em; align-items: flex-end;
+            display: flex; flex-direction: column; gap: 0.4em;
             margin-bottom: 0.5em; padding: 0.6em; background: #161616;
             border: 1px solid #333; border-radius: 4px;
         }
+        .yt-entry-row-main { display: flex; gap: 0.5em; align-items: flex-end; }
+        .yt-entry-row-opts { display: flex; gap: 1em; align-items: center; flex-wrap: wrap; padding-top: 0.2em; }
         .yt-entry-url { flex: 2; }
         .yt-entry-path { flex: 2; }
         .yt-entry-browse, .yt-entry-remove { flex-shrink: 0; white-space: nowrap; }
+        .yt-entry-maxage-label { display: flex; align-items: center; gap: 0.4em; font-size: 0.85em; color: #ccc; }
+        .yt-entry-maxage { width: 70px; background: #1c1c1c; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 0.3em 0.5em; }
+        .yt-entry-delwatched-label { display: flex; align-items: center; gap: 0.4em; font-size: 0.85em; color: #ccc; cursor: pointer; }
         #yt-dir-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.75); z-index: 9000;
@@ -275,27 +280,12 @@
                         <div class="inputContainer">
                             <label class="inputLabel">Playlist-/Kanal-Einträge</label>
                             <div class="fieldDescription" style="margin-bottom:0.5em;">
-                                Jeder Eintrag hat eine URL und ein optionales Verzeichnis. Leer = Basisverzeichnis wird verwendet.
+                                Jeder Eintrag hat eine URL, ein optionales Verzeichnis, ein maximales Videoalter (Tage, 0 = kein Limit) und die Option, gesehene Videos automatisch zu löschen.
                             </div>
                             <div id="yt-scheduled-entries"></div>
                             <button id="yt-add-entry-btn" is="emby-button" type="button" class="raised" style="margin-top:0.4em;">
                                 + Eintrag hinzufügen
                             </button>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="PlaylistMaxAgeDays">Maximales Videoalter (Tage)</label>
-                            <input id="PlaylistMaxAgeDays" name="PlaylistMaxAgeDays" type="number"
-                                   is="emby-input" min="0" />
-                            <div class="fieldDescription">Videos aus Playlists überspringen, die älter als diese Anzahl Tage sind. 0 = kein Limit.</div>
-                        </div>
-
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label class="emby-checkbox-label">
-                                <input id="DeleteWatchedScheduledVideos" name="DeleteWatchedScheduledVideos" type="checkbox" is="emby-checkbox" />
-                                <span>Gesehene Videos automatisch löschen</span>
-                            </label>
-                            <div class="fieldDescription checkboxFieldDescription">Gilt nur für geplante Downloads. Wird ein Video als gesehen markiert, wird die Datei automatisch gelöscht und das Video nicht erneut heruntergeladen.</div>
                         </div>
 
                         <div>

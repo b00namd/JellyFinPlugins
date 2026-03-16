@@ -59,19 +59,25 @@
         var container = document.getElementById('yt-scheduled-entries');
         container.innerHTML = '';
         (entries || []).forEach(function (entry) {
-            addEntryRow(entry.Url || '', entry.DownloadPath || '');
+            addEntryRow(entry.Url || '', entry.DownloadPath || '', entry.MaxAgeDays || 0, !!entry.DeleteWatched);
         });
     }
 
-    function addEntryRow(url, path) {
+    function addEntryRow(url, path, maxAgeDays, deleteWatched) {
         var container = document.getElementById('yt-scheduled-entries');
         var row = document.createElement('div');
         row.className = 'yt-entry-row';
         row.innerHTML =
-            '<input type="text" class="yt-entry-url emby-input" placeholder="https://..." value="' + escHtml(url) + '" style="flex:2;background:#1c1c1c;color:#fff;border:1px solid #444;border-radius:4px;padding:0.4em 0.6em;" />' +
-            '<input type="text" class="yt-entry-path emby-input" placeholder="Verzeichnis (leer = Basis)" value="' + escHtml(path) + '" style="flex:2;background:#1c1c1c;color:#fff;border:1px solid #444;border-radius:4px;padding:0.4em 0.6em;" />' +
-            '<button type="button" class="yt-entry-browse raised emby-button" style="padding:0.4em 0.8em;">&#128193;</button>' +
-            '<button type="button" class="yt-entry-remove raised emby-button" style="padding:0.4em 0.8em;background:#5a1a1a;">&#10005;</button>';
+            '<div class="yt-entry-row-main">' +
+                '<input type="text" class="yt-entry-url emby-input" placeholder="https://..." value="' + escHtml(url) + '" style="flex:2;background:#1c1c1c;color:#fff;border:1px solid #444;border-radius:4px;padding:0.4em 0.6em;" />' +
+                '<input type="text" class="yt-entry-path emby-input" placeholder="Verzeichnis (leer = Basis)" value="' + escHtml(path) + '" style="flex:2;background:#1c1c1c;color:#fff;border:1px solid #444;border-radius:4px;padding:0.4em 0.6em;" />' +
+                '<button type="button" class="yt-entry-browse raised emby-button" style="padding:0.4em 0.8em;">&#128193;</button>' +
+                '<button type="button" class="yt-entry-remove raised emby-button" style="padding:0.4em 0.8em;background:#5a1a1a;">&#10005;</button>' +
+            '</div>' +
+            '<div class="yt-entry-row-opts">' +
+                '<label class="yt-entry-maxage-label">Max. Videoalter (Tage, 0=unbegrenzt): <input type="number" class="yt-entry-maxage" min="0" value="' + (maxAgeDays || 0) + '" /></label>' +
+                '<label class="yt-entry-delwatched-label"><input type="checkbox" class="yt-entry-delwatched"' + (deleteWatched ? ' checked' : '') + ' /> Gesehene Videos löschen</label>' +
+            '</div>';
 
         var pathInput = row.querySelector('.yt-entry-path');
         row.querySelector('.yt-entry-browse').addEventListener('click', function () {
@@ -92,7 +98,9 @@
             if (url) {
                 result.push({
                     Url: url,
-                    DownloadPath: row.querySelector('.yt-entry-path').value.trim()
+                    DownloadPath: row.querySelector('.yt-entry-path').value.trim(),
+                    MaxAgeDays: parseInt(row.querySelector('.yt-entry-maxage').value) || 0,
+                    DeleteWatched: row.querySelector('.yt-entry-delwatched').checked
                 });
             }
         });
@@ -130,8 +138,6 @@
             document.getElementById('DownloadThumbnails').checked       = !!config.DownloadThumbnails;
             document.getElementById('TriggerLibraryScanAfterDownload').checked = !!config.TriggerLibraryScanAfterDownload;
             document.getElementById('EnableScheduledDownloads').checked = !!config.EnableScheduledDownloads;
-            document.getElementById('PlaylistMaxAgeDays').value         = config.PlaylistMaxAgeDays || 30;
-            document.getElementById('DeleteWatchedScheduledVideos').checked = !!config.DeleteWatchedScheduledVideos;
 
             renderScheduledEntries(config.ScheduledEntries || []);
         });
@@ -156,8 +162,6 @@
             config.TriggerLibraryScanAfterDownload = document.getElementById('TriggerLibraryScanAfterDownload').checked;
             config.EnableScheduledDownloads   = document.getElementById('EnableScheduledDownloads').checked;
             config.ScheduledEntries           = collectScheduledEntries();
-            config.PlaylistMaxAgeDays         = parseInt(document.getElementById('PlaylistMaxAgeDays').value) || 30;
-            config.DeleteWatchedScheduledVideos = document.getElementById('DeleteWatchedScheduledVideos').checked;
 
             ApiClient.updatePluginConfiguration(PLUGIN_ID, config).then(function () {
                 showToast('Einstellungen gespeichert.');
@@ -439,7 +443,7 @@
 
         // Add scheduled entry row
         document.getElementById('yt-add-entry-btn').addEventListener('click', function () {
-            addEntryRow('', '');
+            addEntryRow('', '', 0, false);
         });
 
         document.getElementById('yt-save-btn').addEventListener('click', saveConfig);

@@ -114,7 +114,7 @@ public class DownloadWorkerService : BackgroundService
         var archivePath = job.IsScheduled ? _archive.ArchivePath : null;
 
         bool success = job.IsPlaylist
-            ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath)
+            ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath, job.MaxAgeDays)
             : await _ytDlp.DownloadVideoAsync(job.Url, outputDir, downloadProgress, ct, archivePath);
 
         if (!success)

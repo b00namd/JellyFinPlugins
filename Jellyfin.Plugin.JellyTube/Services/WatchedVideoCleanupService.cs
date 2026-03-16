@@ -57,7 +57,7 @@ public class WatchedVideoCleanupService : IHostedService
     private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e)
     {
         var config = Plugin.Instance?.Configuration;
-        if (config is null || !config.DeleteWatchedScheduledVideos)
+        if (config is null)
             return;
 
         if (!e.UserData.Played)
@@ -75,6 +75,10 @@ public class WatchedVideoCleanupService : IHostedService
             string.Equals(j.DownloadedFilePath, filePath, StringComparison.OrdinalIgnoreCase));
 
         if (job is null)
+            return;
+
+        // Per-job setting takes priority; fall back to global DeleteWatchedScheduledVideos
+        if (!job.DeleteWatched && !config.DeleteWatchedScheduledVideos)
             return;
 
         _logger.LogInformation("Watched scheduled video '{Path}', deleting file.", filePath);

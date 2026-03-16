@@ -67,7 +67,7 @@ public class DownloadQueueTask : IScheduledTask
                 if (!string.IsNullOrEmpty(trimmed))
                 {
                     var overridePath = string.IsNullOrWhiteSpace(entry.DownloadPath) ? null : entry.DownloadPath;
-                    _queue.Enqueue(trimmed, isPlaylist: true, isScheduled: true, overrideDownloadPath: overridePath);
+                    _queue.Enqueue(trimmed, isPlaylist: true, isScheduled: true, overrideDownloadPath: overridePath, maxAgeDays: entry.MaxAgeDays, deleteWatched: entry.DeleteWatched);
                     _logger.LogInformation("Scheduled playlist enqueued: {Url} -> {Path}", trimmed, overridePath ?? "(global)");
                 }
             }
