@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Jellyfin.Plugin.JellyTube.Models;
 using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Plugin.JellyTube.Configuration;
@@ -63,9 +65,9 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool EnableScheduledDownloads { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets the newline-separated list of playlist/channel URLs to check on schedule.
+    /// Gets or sets the list of scheduled playlist/channel entries, each with its own optional download path.
     /// </summary>
-    public string ScheduledPlaylistUrls { get; set; } = string.Empty;
+    public List<ScheduledPlaylistEntry> ScheduledEntries { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the maximum age in days for playlist items (0 = unlimited).

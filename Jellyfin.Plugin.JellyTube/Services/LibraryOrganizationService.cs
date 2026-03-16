@@ -12,10 +12,12 @@ public class LibraryOrganizationService
     /// <summary>
     /// Returns the directory path where a video should be saved.
     /// </summary>
-    public string GetVideoDirectory(VideoMetadata meta)
+    /// <param name="meta">Video metadata.</param>
+    /// <param name="overrideBasePath">Optional base path override. Falls back to the global DownloadPath when null or empty.</param>
+    public string GetVideoDirectory(VideoMetadata meta, string? overrideBasePath = null)
     {
         var config = Plugin.Instance!.Configuration;
-        var basePath = config.DownloadPath;
+        var basePath = string.IsNullOrWhiteSpace(overrideBasePath) ? config.DownloadPath : overrideBasePath;
 
         if (!config.OrganiseByChannel || string.IsNullOrWhiteSpace(meta.ChannelName))
         {

@@ -100,7 +100,7 @@ public class DownloadWorkerService : BackgroundService
         job.Metadata = meta;
 
         // Step 2 – determine output directory and download
-        var outputDir = _library.GetVideoDirectory(meta);
+        var outputDir = _library.GetVideoDirectory(meta, job.OverrideDownloadPath);
         Directory.CreateDirectory(outputDir);
 
         job.Status = DownloadJobStatus.Downloading;

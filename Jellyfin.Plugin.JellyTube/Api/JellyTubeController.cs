@@ -51,7 +51,7 @@ public class JellyTubeController : ControllerBase
             return BadRequest("URL must not be empty.");
         }
 
-        var job = _queue.Enqueue(request.Url, request.IsPlaylist);
+        var job = _queue.Enqueue(request.Url, request.IsPlaylist, overrideDownloadPath: request.DownloadPath);
         return StatusCode(StatusCodes.Status201Created, job);
     }
 
@@ -239,7 +239,8 @@ public class JellyTubeController : ControllerBase
 /// <summary>Request body for enqueuing a download.</summary>
 public record EnqueueRequest(
     [Required] string Url,
-    bool IsPlaylist = false);
+    bool IsPlaylist = false,
+    string? DownloadPath = null);
 
 /// <summary>Request body for fetching metadata.</summary>
 public record FetchMetadataRequest(

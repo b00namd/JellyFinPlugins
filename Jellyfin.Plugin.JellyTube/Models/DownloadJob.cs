@@ -42,4 +42,7 @@ public class DownloadJob
 
     /// <summary>Gets or sets the full path to the downloaded video file (set after download completes).</summary>
     public string? DownloadedFilePath { get; set; }
+
+    /// <summary>Gets or sets an optional download directory override. Overrides the global DownloadPath for this job.</summary>
+    public string? OverrideDownloadPath { get; set; }
 }

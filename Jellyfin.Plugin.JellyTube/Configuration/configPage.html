@@ -86,6 +86,14 @@
         .yt-tool-err  { color: #f44336; font-weight: bold; }
         .yt-input-row { display: flex; gap: 0.5em; align-items: flex-end; }
         .yt-input-row > div { flex: 1; }
+        .yt-entry-row {
+            display: flex; gap: 0.5em; align-items: flex-end;
+            margin-bottom: 0.5em; padding: 0.6em; background: #161616;
+            border: 1px solid #333; border-radius: 4px;
+        }
+        .yt-entry-url { flex: 2; }
+        .yt-entry-path { flex: 2; }
+        .yt-entry-browse, .yt-entry-remove { flex-shrink: 0; white-space: nowrap; }
         #yt-dir-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.75); z-index: 9000;
@@ -252,6 +260,10 @@
                         </div>
 
                         <h3>Geplante Downloads</h3>
+                        <div class="fieldDescription" style="margin-bottom:1em;">
+                            Der geplante Task läuft standardmäßig <strong>stündlich</strong>. Das Intervall kann unter
+                            <em>Dashboard → Geplante Aufgaben → JellyTube → Process YouTube Download Queue</em> angepasst werden.
+                        </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
@@ -261,11 +273,14 @@
                         </div>
 
                         <div class="inputContainer">
-                            <label class="inputLabel" for="ScheduledPlaylistUrls">Playlist-/Kanal-URLs</label>
-                            <textarea id="ScheduledPlaylistUrls" name="ScheduledPlaylistUrls"
-                                      style="width:100%;min-height:120px;box-sizing:border-box;background:#1c1c1c;color:#fff;border:1px solid #444;border-radius:4px;padding:0.5em;font-size:0.95em;resize:vertical;"
-                                      placeholder="Eine URL pro Zeile"></textarea>
-                            <div class="fieldDescription">Diese Playlists werden bei jedem geplanten Task-Lauf geprüft.</div>
+                            <label class="inputLabel">Playlist-/Kanal-Einträge</label>
+                            <div class="fieldDescription" style="margin-bottom:0.5em;">
+                                Jeder Eintrag hat eine URL und ein optionales Verzeichnis. Leer = Basisverzeichnis wird verwendet.
+                            </div>
+                            <div id="yt-scheduled-entries"></div>
+                            <button id="yt-add-entry-btn" is="emby-button" type="button" class="raised" style="margin-top:0.4em;">
+                                + Eintrag hinzufügen
+                            </button>
                         </div>
 
                         <div class="inputContainer">
@@ -308,6 +323,19 @@
                             <input id="yt-is-playlist" type="checkbox" is="emby-checkbox" />
                             <span>Dies ist eine Playlist / ein Kanal</span>
                         </label>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="yt-dl-path">Zielverzeichnis (optional)</label>
+                        <div class="yt-input-row">
+                            <div>
+                                <input id="yt-dl-path" type="text" is="emby-input"
+                                       placeholder="Leer = Basisverzeichnis" />
+                            </div>
+                            <button id="yt-dl-browse-btn" is="emby-button" type="button" class="raised">
+                                Durchsuchen
+                            </button>
+                        </div>
                     </div>
 
                     <div style="margin-bottom:1em;">

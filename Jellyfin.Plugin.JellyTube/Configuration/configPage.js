@@ -53,6 +53,53 @@
     }
 
     // -----------------------------------------------------------------------
+    // Scheduled entries list
+    // -----------------------------------------------------------------------
+    function renderScheduledEntries(entries) {
+        var container = document.getElementById('yt-scheduled-entries');
+        container.innerHTML = '';
+        (entries || []).forEach(function (entry) {
+            addEntryRow(entry.Url || '', entry.DownloadPath || '');
+        });
+    }
+
+    function addEntryRow(url, path) {
+        var container = document.getElementById('yt-scheduled-entries');
+        var row = document.createElement('div');
+        row.className = 'yt-entry-row';
+        row.innerHTML =
+            '<input type="text" class="yt-entry-url emby-input" placeholder="https://..." value="' + escHtml(url) + '" style="flex:2;background:#1c1c1c;color:#fff;border:1px solid #444;border-radius:4px;padding:0.4em 0.6em;" />' +
+            '<input type="text" class="yt-entry-path emby-input" placeholder="Verzeichnis (leer = Basis)" value="' + escHtml(path) + '" style="flex:2;background:#1c1c1c;color:#fff;border:1px solid #444;border-radius:4px;padding:0.4em 0.6em;" />' +
+            '<button type="button" class="yt-entry-browse raised emby-button" style="padding:0.4em 0.8em;">&#128193;</button>' +
+            '<button type="button" class="yt-entry-remove raised emby-button" style="padding:0.4em 0.8em;background:#5a1a1a;">&#10005;</button>';
+
+        var pathInput = row.querySelector('.yt-entry-path');
+        row.querySelector('.yt-entry-browse').addEventListener('click', function () {
+            openDirBrowser(pathInput);
+        });
+        row.querySelector('.yt-entry-remove').addEventListener('click', function () {
+            container.removeChild(row);
+        });
+
+        container.appendChild(row);
+    }
+
+    function collectScheduledEntries() {
+        var rows = document.querySelectorAll('#yt-scheduled-entries .yt-entry-row');
+        var result = [];
+        rows.forEach(function (row) {
+            var url = row.querySelector('.yt-entry-url').value.trim();
+            if (url) {
+                result.push({
+                    Url: url,
+                    DownloadPath: row.querySelector('.yt-entry-path').value.trim()
+                });
+            }
+        });
+        return result;
+    }
+
+    // -----------------------------------------------------------------------
     // Settings
     // -----------------------------------------------------------------------
     function loadConfig() {
@@ -78,14 +125,15 @@
             document.getElementById('MaxConcurrentDownloads').value     = config.MaxConcurrentDownloads || 2;
             document.getElementById('OrganiseByChannel').checked        = !!config.OrganiseByChannel;
             document.getElementById('DownloadSubtitles').checked        = !!config.DownloadSubtitles;
-            document.getElementById('SubtitleLanguages').value          = config.SubtitleLanguages || 'en';
+            document.getElementById('SubtitleLanguages').value          = config.SubtitleLanguages || '';
             document.getElementById('WriteNfoFiles').checked            = !!config.WriteNfoFiles;
             document.getElementById('DownloadThumbnails').checked       = !!config.DownloadThumbnails;
             document.getElementById('TriggerLibraryScanAfterDownload').checked = !!config.TriggerLibraryScanAfterDownload;
             document.getElementById('EnableScheduledDownloads').checked = !!config.EnableScheduledDownloads;
-            document.getElementById('ScheduledPlaylistUrls').value      = config.ScheduledPlaylistUrls || '';
             document.getElementById('PlaylistMaxAgeDays').value         = config.PlaylistMaxAgeDays || 30;
             document.getElementById('DeleteWatchedScheduledVideos').checked = !!config.DeleteWatchedScheduledVideos;
+
+            renderScheduledEntries(config.ScheduledEntries || []);
         });
     }
 
@@ -107,7 +155,7 @@
             config.DownloadThumbnails         = document.getElementById('DownloadThumbnails').checked;
             config.TriggerLibraryScanAfterDownload = document.getElementById('TriggerLibraryScanAfterDownload').checked;
             config.EnableScheduledDownloads   = document.getElementById('EnableScheduledDownloads').checked;
-            config.ScheduledPlaylistUrls      = document.getElementById('ScheduledPlaylistUrls').value;
+            config.ScheduledEntries           = collectScheduledEntries();
             config.PlaylistMaxAgeDays         = parseInt(document.getElementById('PlaylistMaxAgeDays').value) || 30;
             config.DeleteWatchedScheduledVideos = document.getElementById('DeleteWatchedScheduledVideos').checked;
 
@@ -121,16 +169,19 @@
     // Directory browser
     // -----------------------------------------------------------------------
     var _dirCurrentPath = '/';
+    var _dirTargetInput = null;  // the <input> to write the selected path into
 
-    function openDirBrowser() {
+    function openDirBrowser(targetInput) {
+        _dirTargetInput = targetInput;
         var overlay = document.getElementById('yt-dir-overlay');
         overlay.style.display = 'flex';
-        var start = document.getElementById('DownloadPath').value.trim() || '/';
+        var start = (targetInput ? targetInput.value.trim() : '') || '/';
         loadDirContents(start);
     }
 
     function closeDirBrowser() {
         document.getElementById('yt-dir-overlay').style.display = 'none';
+        _dirTargetInput = null;
     }
 
     function loadDirContents(path) {
@@ -223,17 +274,19 @@
         var url = document.getElementById('yt-url-input').value.trim();
         if (!url) { showToast('Bitte eine URL eingeben.'); return; }
 
-        var isPlaylist = document.getElementById('yt-is-playlist').checked;
+        var isPlaylist  = document.getElementById('yt-is-playlist').checked;
+        var dlPath      = document.getElementById('yt-dl-path').value.trim() || null;
 
         fetch(API_BASE + '/download', {
             method: 'POST',
             headers: apiHeaders(),
-            body: JSON.stringify({ url: url, isPlaylist: isPlaylist })
+            body: JSON.stringify({ url: url, isPlaylist: isPlaylist, downloadPath: dlPath })
         })
         .then(function (r) {
             if (r.status === 201) {
                 showToast('Zur Warteschlange hinzugef\u00fcgt.');
                 document.getElementById('yt-url-input').value = '';
+                document.getElementById('yt-dl-path').value  = '';
                 document.getElementById('yt-metadata-preview').style.display = 'none';
                 refreshJobs();
             } else {
@@ -362,14 +415,31 @@
             if (!isCustom) document.getElementById('VideoFormat').value = this.value;
         });
 
-        document.getElementById('yt-browse-btn').addEventListener('click', openDirBrowser);
+        // Base path browser (targets DownloadPath input)
+        document.getElementById('yt-browse-btn').addEventListener('click', function () {
+            openDirBrowser(document.getElementById('DownloadPath'));
+        });
+
+        // Manual download path browser (targets yt-dl-path input)
+        document.getElementById('yt-dl-browse-btn').addEventListener('click', function () {
+            openDirBrowser(document.getElementById('yt-dl-path'));
+        });
+
+        // Dir browser confirm / cancel
         document.getElementById('yt-dir-select-btn').addEventListener('click', function () {
-            document.getElementById('DownloadPath').value = _dirCurrentPath;
+            if (_dirTargetInput) {
+                _dirTargetInput.value = _dirCurrentPath;
+            }
             closeDirBrowser();
         });
         document.getElementById('yt-dir-cancel-btn').addEventListener('click', closeDirBrowser);
         document.getElementById('yt-dir-overlay').addEventListener('click', function (e) {
             if (e.target === this) closeDirBrowser();
+        });
+
+        // Add scheduled entry row
+        document.getElementById('yt-add-entry-btn').addEventListener('click', function () {
+            addEntryRow('', '');
         });
 
         document.getElementById('yt-save-btn').addEventListener('click', saveConfig);

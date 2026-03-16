@@ -58,16 +58,17 @@ public class DownloadQueueTask : IScheduledTask
     {
         var config = Plugin.Instance!.Configuration;
 
-        // Enqueue scheduled playlist URLs — the background worker will pick them up immediately
-        if (config.EnableScheduledDownloads && !string.IsNullOrWhiteSpace(config.ScheduledPlaylistUrls))
+        // Enqueue scheduled playlist entries — the background worker will pick them up immediately
+        if (config.EnableScheduledDownloads && config.ScheduledEntries.Count > 0)
         {
-            foreach (var url in config.ScheduledPlaylistUrls.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var entry in config.ScheduledEntries)
             {
-                var trimmed = url.Trim();
+                var trimmed = entry.Url.Trim();
                 if (!string.IsNullOrEmpty(trimmed))
                 {
-                    _queue.Enqueue(trimmed, isPlaylist: true, isScheduled: true);
-                    _logger.LogInformation("Scheduled playlist enqueued: {Url}", trimmed);
+                    var overridePath = string.IsNullOrWhiteSpace(entry.DownloadPath) ? null : entry.DownloadPath;
+                    _queue.Enqueue(trimmed, isPlaylist: true, isScheduled: true, overrideDownloadPath: overridePath);
+                    _logger.LogInformation("Scheduled playlist enqueued: {Url} -> {Path}", trimmed, overridePath ?? "(global)");
                 }
             }
         }
