@@ -191,6 +191,7 @@ public class YtDlpService
         if (!string.IsNullOrEmpty(archivePath))
         {
             opts.DownloadArchive = archivePath;
+            opts.BreakOnExisting = true; // stop at first archived video (channel is sorted newest-first)
         }
 
         return opts;
