@@ -62,9 +62,9 @@
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
             .then(function (data) {
                 if (data.reachable) {
-                    bar.innerHTML = '<span class="jt-ok">&#10003;</span> Invidious erreichbar';
+                    bar.innerHTML = '<span class="jt-ok">&#10003;</span> Invidious erreichbar: ' + (data.message || '');
                 } else {
-                    bar.innerHTML = '<span class="jt-err">&#10007;</span> Invidious nicht erreichbar – bitte URL prüfen';
+                    bar.innerHTML = '<span class="jt-err">&#10007;</span> ' + (data.message || 'Invidious nicht erreichbar');
                 }
             })
             .catch(function () {

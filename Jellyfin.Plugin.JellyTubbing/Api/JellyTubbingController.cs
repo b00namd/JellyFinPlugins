@@ -51,7 +51,11 @@ public class JellyTubbingController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> TestInvidious(CancellationToken ct)
     {
+        var url = Plugin.Instance?.Configuration.InvidiousInstanceUrl ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(url))
+            return Ok(new { reachable = false, message = "Keine Invidious-URL konfiguriert." });
+
         var ok = await _invidious.IsReachableAsync(ct);
-        return Ok(new { reachable = ok });
+        return Ok(new { reachable = ok, message = ok ? url : $"Nicht erreichbar: {url}" });
     }
 }

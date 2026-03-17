@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/b00na/Nextcloud2/Projekte/JellyFin YT/$USERPROFILE/.nuget/packages/**)",
+      "Read(//c/Users/b00na/.nuget/packages/youtubedlsharp/**)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File build.ps1)",
+      "Read(//c/Users/b00na/.nuget/packages/jellyfin.controller/10.9.11/**)",
+      "Bash(cd \"/tmp\")",
+      "Bash(cp \"/c/Users/b00na/.nuget/packages/jellyfin.controller/10.9.11/jellyfin.controller.10.9.11.nupkg\" ./jc.zip)",
+      "Bash(unzip -o jc.zip \"src/**\" -d jc_src)",
+      "Bash(unzip -l jc.zip)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\b00na\\\\Nextcloud2\\\\Projekte\\\\JellyFin YT\\\\build.ps1\")",
+      "Bash(xxd \"c:\\\\Users\\\\b00na\\\\Nextcloud2\\\\Projekte\\\\JellyFin YT\\\\build.ps1\")",
+      "Bash(unix2dos \"c:\\\\Users\\\\b00na\\\\Nextcloud2\\\\Projekte\\\\JellyFin YT\\\\build.ps1\")"
+    ]
+  }
+}

@@ -80,10 +80,12 @@
             margin-bottom: 1.5em;
             font-size: 0.9em;
             flex-wrap: wrap;
+            align-items: center;
         }
-        .yt-tool-item { display: flex; align-items: center; gap: 0.4em; }
-        .yt-tool-ok   { color: #4caf50; font-weight: bold; }
-        .yt-tool-err  { color: #f44336; font-weight: bold; }
+        .yt-tool-item  { display: flex; align-items: center; gap: 0.4em; }
+        .yt-tool-ok    { color: #4caf50; font-weight: bold; }
+        .yt-tool-err   { color: #f44336; font-weight: bold; }
+        .yt-tool-info  { color: #aaa; }
         .yt-input-row { display: flex; gap: 0.5em; align-items: flex-end; }
         .yt-input-row > div { flex: 1; }
         .yt-entry-row {
@@ -132,18 +134,16 @@
             <div class="content-primary">
 
                 <!-- ============================================================ -->
-                <!-- TOOLS STATUS -->
-                <!-- ============================================================ -->
-                <div class="yt-tools-bar" id="yt-tools-bar">
-                    <div class="yt-tool-item" id="yt-tool-ytdlp">&#8987; yt-dlp wird geprüft…</div>
-                    <div class="yt-tool-item" id="yt-tool-ffmpeg">&#8987; ffmpeg wird geprüft…</div>
-                </div>
-
-                <!-- ============================================================ -->
                 <!-- SETTINGS -->
                 <!-- ============================================================ -->
                 <div class="yt-section">
-                    <h2>Einstellungen</h2>
+                    <h2>JellyTube – Einstellungen</h2>
+
+                    <!-- TOOLS STATUS -->
+                    <div class="yt-tools-bar" id="yt-tools-bar">
+                        <div class="yt-tool-item" id="yt-tool-ytdlp"><span class="yt-tool-info">&#8987; yt-dlp wird geprüft…</span></div>
+                        <div class="yt-tool-item" id="yt-tool-ffmpeg"><span class="yt-tool-info">&#8987; ffmpeg wird geprüft…</span></div>
+                    </div>
                     <form id="yt-config-form">
 
                         <div class="inputContainer">

@@ -41,8 +41,9 @@ public class InvidiousService
         try
         {
             var client = _httpClientFactory.CreateClient("jellytubbing");
-            client.Timeout = TimeSpan.FromSeconds(5);
-            var resp = await client.GetAsync(BaseUrl + "/api/v1/stats", ct);
+            client.Timeout = TimeSpan.FromSeconds(10);
+            // /api/v1/stats is disabled on many instances – use trending instead
+            var resp = await client.GetAsync(BaseUrl + "/api/v1/trending?fields=videoId&limit=1", ct);
             return resp.IsSuccessStatusCode;
         }
         catch
