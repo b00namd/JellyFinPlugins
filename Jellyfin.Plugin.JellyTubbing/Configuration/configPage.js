@@ -34,7 +34,6 @@
             document.getElementById('YouTubeApiKey').value      = config.YouTubeApiKey || '';
             document.getElementById('OAuthClientId').value      = config.OAuthClientId || '';
             document.getElementById('OAuthClientSecret').value  = config.OAuthClientSecret || '';
-            document.getElementById('JellyfinServerUrl').value  = config.JellyfinServerUrl || 'http://localhost:8096';
             document.getElementById('StrmOutputPath').value     = config.StrmOutputPath || '';
             document.getElementById('MaxVideosPerChannel').value = config.MaxVideosPerChannel || 25;
             document.getElementById('YtDlpBinaryPath').value    = config.YtDlpBinaryPath || '';
