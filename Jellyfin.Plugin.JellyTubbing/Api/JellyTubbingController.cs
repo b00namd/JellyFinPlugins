@@ -12,6 +12,13 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Jellyfin.Plugin.JellyTubbing.Api;
 
+/// <summary>Request body for device poll endpoint.</summary>
+public class DevicePollRequest
+{
+    /// <summary>Gets or sets the device code returned by oauth-device-start.</summary>
+    public string DeviceCode { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// REST API endpoints for the JellyTubbing plugin.
 /// </summary>
@@ -79,41 +86,37 @@ public class JellyTubbingController : ControllerBase
     // OAuth2
     // -----------------------------------------------------------------------
 
-    /// <summary>Returns the Google OAuth2 authorization URL for the config page popup.</summary>
-    [HttpGet("oauth-url")]
+    /// <summary>Starts the device authorization flow. Returns user_code and verification_url.</summary>
+    [HttpPost("oauth-device-start")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-    public IActionResult GetOAuthUrl()
+    public async Task<IActionResult> StartDeviceAuth(CancellationToken ct)
     {
-        var redirectUri = BuildRedirectUri();
-        var url = _oauth.GetAuthorizationUrl(redirectUri);
-
-        if (string.IsNullOrEmpty(url))
+        var config = Plugin.Instance?.Configuration;
+        if (string.IsNullOrWhiteSpace(config?.OAuthClientId))
             return Ok(new { success = false, message = "OAuth-Client-ID nicht konfiguriert." });
 
-        return Ok(new { success = true, url });
+        var result = await _oauth.StartDeviceAuthAsync(ct);
+        if (result is null)
+            return Ok(new { success = false, message = "Fehler beim Starten der Geraete-Authorisierung." });
+
+        return Ok(new
+        {
+            success          = true,
+            userCode         = result.UserCode,
+            verificationUrl  = result.VerificationUrl,
+            deviceCode       = result.DeviceCode,
+            interval         = result.Interval,
+            expiresIn        = result.ExpiresIn,
+        });
     }
 
-    /// <summary>
-    /// Handles the Google OAuth2 callback. Exchanges the authorization code for tokens
-    /// and returns an HTML page that closes the popup and notifies the opener.
-    /// </summary>
-    [HttpGet("oauth-callback")]
-    [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> OAuthCallback([FromQuery] string? code, [FromQuery] string? error, CancellationToken ct)
+    /// <summary>Polls once for device authorization completion.</summary>
+    [HttpPost("oauth-device-poll")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PollDeviceAuth([FromBody] DevicePollRequest request, CancellationToken ct)
     {
-        if (!string.IsNullOrEmpty(error) || string.IsNullOrEmpty(code))
-        {
-            return Content(OAuthPopupHtml("Fehler", $"Google-Fehler: {error ?? "kein Code erhalten"}", false), "text/html");
-        }
-
-        var redirectUri = BuildRedirectUri();
-        var ok = await _oauth.ExchangeCodeAsync(code, redirectUri, ct);
-
-        return Content(ok
-            ? OAuthPopupHtml("Verbunden", "Google-Konto erfolgreich verbunden.", true)
-            : OAuthPopupHtml("Fehler", "Token-Austausch fehlgeschlagen. Prüfe Client-ID und Secret.", false),
-            "text/html");
+        var status = await _oauth.PollDeviceAsync(request.DeviceCode, ct);
+        return Ok(new { status });
     }
 
     /// <summary>Returns the current OAuth authorization status.</summary>
@@ -196,32 +199,6 @@ public class JellyTubbingController : ControllerBase
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
-
-    private string BuildRedirectUri()
-    {
-        var serverUrl = (Plugin.Instance?.Configuration.JellyfinServerUrl ?? "http://localhost:8096").TrimEnd('/');
-        return $"{serverUrl}/api/jellytubbing/oauth-callback";
-    }
-
-    private static string OAuthPopupHtml(string title, string message, bool success)
-    {
-        var icon    = success ? "&#10003;" : "&#10007;";
-        var cssClass = success ? "ok" : "err";
-        var boolJs  = success ? "true" : "false";
-        return "<!DOCTYPE html><html lang=\"de\"><head><meta charset=\"utf-8\"/><title>" + title + "</title>" +
-               "<style>" +
-               "body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a1a;color:#fff;}" +
-               ".box{text-align:center;padding:2em;border:1px solid #333;border-radius:8px;background:#222;}" +
-               ".ok{color:#4caf50;font-size:2em;}.err{color:#f44336;font-size:2em;}" +
-               "</style></head><body><div class=\"box\">" +
-               "<div class=\"" + cssClass + "\">" + icon + "</div>" +
-               "<h2>" + title + "</h2><p>" + message + "</p>" +
-               "<p style=\"color:#aaa;font-size:0.85em;\">Dieses Fenster kann geschlossen werden.</p>" +
-               "</div><script>" +
-               "if(window.opener&&typeof window.opener.jt_oauthComplete==='function'){window.opener.jt_oauthComplete(" + boolJs + ");}" +
-               "if(" + boolJs + ")setTimeout(function(){window.close();},1500);" +
-               "</script></body></html>";
-    }
 
     private static async Task<(bool Available, string? Version, string? Error)> TryGetVersionAsync(string binary, string args)
     {

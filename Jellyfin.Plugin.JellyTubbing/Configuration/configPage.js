@@ -43,10 +43,6 @@
             document.getElementById('TrendingRegion').value     = config.TrendingRegion || 'DE';
 
             // Show OAuth redirect hint
-            var serverUrl = (config.JellyfinServerUrl || 'http://localhost:8096').replace(/\/+$/, '');
-            var hint = document.getElementById('jt-redirect-hint');
-            if (hint) hint.textContent = serverUrl + '/api/jellytubbing/oauth-callback';
-
             // Store synced channel IDs for checkbox rendering
             window._jtSyncedIds = config.SyncedChannelIds || [];
         });
@@ -57,7 +53,6 @@
             config.YouTubeApiKey       = document.getElementById('YouTubeApiKey').value.trim();
             config.OAuthClientId       = document.getElementById('OAuthClientId').value.trim();
             config.OAuthClientSecret   = document.getElementById('OAuthClientSecret').value.trim();
-            config.JellyfinServerUrl   = document.getElementById('JellyfinServerUrl').value.trim() || 'http://localhost:8096';
             config.StrmOutputPath      = document.getElementById('StrmOutputPath').value.trim();
             config.SyncIntervalHours   = parseInt(document.getElementById('SyncIntervalHours').value, 10) || 6;
             config.MaxVideosPerChannel = parseInt(document.getElementById('MaxVideosPerChannel').value, 10) || 50;
@@ -142,37 +137,75 @@
     }
 
     // -----------------------------------------------------------------------
-    // OAuth popup
+    // OAuth – Device Authorization Grant
     // -----------------------------------------------------------------------
 
-    window.jt_oauthComplete = function (success) {
-        if (success) {
-            showToast('Google-Konto verbunden!');
-            checkOAuthStatus();
-        } else {
-            showToast('OAuth fehlgeschlagen. Pruefen Sie Client-ID und Secret.');
-        }
-    };
+    var _pollTimer = null;
 
     function startOAuth() {
-        // Save config first so JellyfinServerUrl is up to date before building the redirect URI
+        // Save credentials first
         ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
-            config.OAuthClientId      = document.getElementById('OAuthClientId').value.trim();
-            config.OAuthClientSecret  = document.getElementById('OAuthClientSecret').value.trim();
-            config.JellyfinServerUrl  = document.getElementById('JellyfinServerUrl').value.trim() || 'http://localhost:8096';
+            config.OAuthClientId     = document.getElementById('OAuthClientId').value.trim();
+            config.OAuthClientSecret = document.getElementById('OAuthClientSecret').value.trim();
             return ApiClient.updatePluginConfiguration(PLUGIN_ID, config);
         }).then(function () {
-            return fetch(API_BASE + '/oauth-url', { headers: apiHeaders() });
+            return fetch(API_BASE + '/oauth-device-start', { method: 'POST', headers: apiHeaders() });
         }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
         .then(function (data) {
             if (!data.success) { showToast(data.message || 'Fehler'); return; }
-            var popup = window.open(data.url, 'jtOAuth', 'width=600,height=700,noopener=0');
-            if (!popup) showToast('Popup wurde blockiert. Bitte Popup-Blocker deaktivieren.');
+            showDeviceBox(data);
+            startPolling(data.deviceCode, Math.max(data.interval || 5, 5) * 1000);
         })
-        .catch(function () { showToast('Fehler beim Abrufen der OAuth-URL.'); });
+        .catch(function () { showToast('Fehler beim Starten der Autorisierung.'); });
+    }
+
+    function showDeviceBox(data) {
+        var box = document.getElementById('jt-device-box');
+        document.getElementById('jt-device-url').textContent  = data.verificationUrl;
+        document.getElementById('jt-device-code').textContent = data.userCode;
+        document.getElementById('jt-device-hint').innerHTML   = '&#8987; Warte auf Bestaetigung...';
+        if (box) box.style.display = '';
+    }
+
+    function hideDeviceBox() {
+        var box = document.getElementById('jt-device-box');
+        if (box) box.style.display = 'none';
+    }
+
+    function startPolling(deviceCode, intervalMs) {
+        if (_pollTimer) clearInterval(_pollTimer);
+        _pollTimer = setInterval(function () {
+            fetch(API_BASE + '/oauth-device-poll', {
+                method: 'POST',
+                headers: apiHeaders(),
+                body: JSON.stringify({ deviceCode: deviceCode })
+            })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (data) {
+                if (data.status === 'success') {
+                    clearInterval(_pollTimer);
+                    hideDeviceBox();
+                    showToast('Google-Konto erfolgreich verbunden!');
+                    checkOAuthStatus();
+                } else if (data.status === 'denied') {
+                    clearInterval(_pollTimer);
+                    hideDeviceBox();
+                    showToast('Zugriff verweigert.');
+                } else if (data.status === 'expired') {
+                    clearInterval(_pollTimer);
+                    document.getElementById('jt-device-hint').innerHTML = '<span class="jt-err">Code abgelaufen. Bitte erneut versuchen.</span>';
+                } else if (data.status === 'slow_down') {
+                    clearInterval(_pollTimer);
+                    startPolling(deviceCode, intervalMs + 5000);
+                }
+                // 'pending' → keep polling
+            })
+            .catch(function () { /* ignore poll errors */ });
+        }, intervalMs);
     }
 
     function revokeOAuth() {
+        if (_pollTimer) { clearInterval(_pollTimer); hideDeviceBox(); }
         fetch(API_BASE + '/oauth-revoke', { method: 'POST', headers: apiHeaders() })
             .then(function () {
                 showToast('Google-Verbindung getrennt.');

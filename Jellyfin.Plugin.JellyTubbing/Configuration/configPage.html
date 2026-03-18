@@ -78,16 +78,21 @@
                     <label class="inputLabel" for="OAuthClientSecret">OAuth2 Client-Secret</label>
                     <input id="OAuthClientSecret" type="password" is="emby-input" style="max-width:300px;" placeholder="GOCSPX-..." />
                     <div class="fieldDescription">
-                        Erstelle OAuth2-Credentials (Typ: Webanwendung) in der Google Cloud Console.
-                        Trage als autorisierten Redirect-URI ein:
-                        <code id="jt-redirect-hint" style="color:#4caf50;"></code>
+                        Erstelle OAuth2-Credentials mit Typ <strong>TVs und eingeschraenkte Eingabegeraete</strong> in der
+                        <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>.
+                        Kein Redirect-URI noetig.
                     </div>
                 </div>
-                <div class="inputContainer">
-                    <label class="inputLabel" for="JellyfinServerUrl">Jellyfin Server-URL</label>
-                    <input id="JellyfinServerUrl" type="text" is="emby-input" style="max-width:400px;" placeholder="http://localhost:8096" />
-                    <div class="fieldDescription">Basis-URL deines Jellyfin-Servers. Wird fuer OAuth-Redirect und STRM-Dateien verwendet.</div>
+
+                <!-- Device code flow UI -->
+                <div id="jt-device-box" style="display:none; margin:1em 0; padding:1em; background:#1a1a1a; border:1px solid #333; border-radius:6px; max-width:480px;">
+                    <div style="margin-bottom:0.5em; color:#aaa; font-size:0.9em;">Oeffne in einem Browser:</div>
+                    <div style="font-size:1.1em; font-weight:bold;" id="jt-device-url"></div>
+                    <div style="margin:0.8em 0; color:#aaa; font-size:0.9em;">und gib diesen Code ein:</div>
+                    <div id="jt-device-code" style="font-size:2em; font-weight:bold; letter-spacing:0.15em; color:#4caf50;"></div>
+                    <div id="jt-device-hint" style="margin-top:0.8em; font-size:0.85em; color:#aaa;">&#8987; Warte auf Bestaetigung...</div>
                 </div>
+
                 <div style="margin-top:1em; display:flex; gap:0.8em; align-items:center; flex-wrap:wrap;">
                     <button id="jt-oauth-btn" is="emby-button" type="button" class="raised">
                         Mit Google verbinden

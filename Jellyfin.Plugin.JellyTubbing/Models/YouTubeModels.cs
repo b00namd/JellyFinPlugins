@@ -107,3 +107,19 @@ public class OAuthTokenResponse
     [JsonPropertyName("expires_in")] public int ExpiresIn { get; set; }
     [JsonPropertyName("token_type")] public string TokenType { get; set; } = string.Empty;
 }
+
+/// <summary>Google Device Authorization response (RFC 8628).</summary>
+public class DeviceCodeResponse
+{
+    [JsonPropertyName("device_code")] public string DeviceCode { get; set; } = string.Empty;
+    [JsonPropertyName("user_code")] public string UserCode { get; set; } = string.Empty;
+    [JsonPropertyName("verification_url")] public string VerificationUrl { get; set; } = string.Empty;
+    [JsonPropertyName("expires_in")] public int ExpiresIn { get; set; }
+    [JsonPropertyName("interval")] public int Interval { get; set; } = 5;
+}
+
+/// <summary>Error response from Google OAuth2 token endpoint.</summary>
+public class OAuthErrorResponse
+{
+    [JsonPropertyName("error")] public string Error { get; set; } = string.Empty;
+}

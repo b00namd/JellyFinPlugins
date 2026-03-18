@@ -4,6 +4,12 @@
         <name>Jellyfin.Plugin.JellyTubbing</name>
     </assembly>
     <members>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Api.DevicePollRequest">
+            <summary>Request body for device poll endpoint.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Api.DevicePollRequest.DeviceCode">
+            <summary>Gets or sets the device code returned by oauth-device-start.</summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController">
             <summary>
             REST API endpoints for the JellyTubbing plugin.
@@ -20,14 +26,11 @@
         <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.CheckTools">
             <summary>Checks whether yt-dlp is available on the server.</summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetOAuthUrl">
-            <summary>Returns the Google OAuth2 authorization URL for the config page popup.</summary>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.StartDeviceAuth(System.Threading.CancellationToken)">
+            <summary>Starts the device authorization flow. Returns user_code and verification_url.</summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.OAuthCallback(System.String,System.String,System.Threading.CancellationToken)">
-            <summary>
-            Handles the Google OAuth2 callback. Exchanges the authorization code for tokens
-            and returns an HTML page that closes the popup and notifies the opener.
-            </summary>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.PollDeviceAuth(Jellyfin.Plugin.JellyTubbing.Api.DevicePollRequest,System.Threading.CancellationToken)">
+            <summary>Polls once for device authorization completion.</summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetOAuthStatus">
             <summary>Returns the current OAuth authorization status.</summary>
@@ -186,6 +189,12 @@
         <member name="T:Jellyfin.Plugin.JellyTubbing.Models.OAuthTokenResponse">
             <summary>Google OAuth2 token response.</summary>
         </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.DeviceCodeResponse">
+            <summary>Google Device Authorization response (RFC 8628).</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.OAuthErrorResponse">
+            <summary>Error response from Google OAuth2 token endpoint.</summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Plugin">
             <summary>
             JellyTubbing plugin – stream YouTube videos directly in Jellyfin via Invidious.
@@ -221,7 +230,8 @@
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.OAuthService">
             <summary>
-            Handles Google OAuth2 authorization code flow for YouTube read-only access.
+            Handles Google OAuth2 Device Authorization Grant (RFC 8628) for YouTube read-only access.
+            No redirect URI required – user enters a code at accounts.google.com/device.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.#ctor(System.Net.Http.IHttpClientFactory,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.OAuthService})">
@@ -230,16 +240,22 @@
             </summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.IsAuthorized">
-            <summary>Returns true when a (possibly refreshable) token is stored.</summary>
+            <summary>Returns true when a valid (or refreshable) token is stored.</summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.GetAuthorizationUrl(System.String)">
-            <summary>Builds the Google authorization URL to redirect the user to.</summary>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.StartDeviceAuthAsync(System.Threading.CancellationToken)">
+            <summary>
+            Starts the device authorization flow.
+            Returns the device code response containing user_code and verification_url.
+            </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.ExchangeCodeAsync(System.String,System.String,System.Threading.CancellationToken)">
-            <summary>Exchanges an authorization code for access + refresh tokens and stores them.</summary>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.PollDeviceAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Polls the token endpoint once for the given device code.
+            Returns "success", "pending", "slow_down", "denied", or "expired".
+            </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.GetValidAccessTokenAsync(System.Threading.CancellationToken)">
-            <summary>Returns a valid access token, refreshing if necessary. Returns null if not authorized.</summary>
+            <summary>Returns a valid access token, refreshing automatically if expired.</summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.Revoke">
             <summary>Clears all stored OAuth tokens.</summary>
