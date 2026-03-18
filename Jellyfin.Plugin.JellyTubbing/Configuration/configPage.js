@@ -244,6 +244,14 @@
         listEl.innerHTML = '';
         var synced = window._jtSyncedIds || [];
 
+        // Checked channels first, then alphabetical within each group
+        subs.sort(function (a, b) {
+            var aChecked = synced.indexOf(a.channelId) >= 0;
+            var bChecked = synced.indexOf(b.channelId) >= 0;
+            if (aChecked !== bChecked) return aChecked ? -1 : 1;
+            return a.title.localeCompare(b.title);
+        });
+
         subs.forEach(function (sub) {
             var item = document.createElement('label');
             item.className = 'jt-sub-item';
@@ -281,10 +289,26 @@
     // -----------------------------------------------------------------------
 
     function triggerSync() {
-        fetch(API_BASE + '/sync', { method: 'POST', headers: apiHeaders() })
-            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-            .then(function (data) { showToast(data.message || 'Sync gestartet.'); })
-            .catch(function () { showToast('Fehler beim Starten der Synchronisation.'); });
+        // Save config first, then start sync
+        ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
+            config.YouTubeApiKey       = document.getElementById('YouTubeApiKey').value.trim();
+            config.OAuthClientId       = document.getElementById('OAuthClientId').value.trim();
+            config.OAuthClientSecret   = document.getElementById('OAuthClientSecret').value.trim();
+            config.StrmOutputPath      = document.getElementById('StrmOutputPath').value.trim();
+            config.MaxVideosPerChannel = parseInt(document.getElementById('MaxVideosPerChannel').value, 10) || 25;
+            config.YtDlpBinaryPath     = document.getElementById('YtDlpBinaryPath').value.trim();
+            config.PreferredQuality    = document.getElementById('PreferredQuality').value;
+            config.TrendingRegion      = document.getElementById('TrendingRegion').value;
+
+            var checked = document.querySelectorAll('.jt-sub-checkbox:checked');
+            config.SyncedChannelIds = Array.from(checked).map(function (cb) { return cb.dataset.channelId; });
+
+            return ApiClient.updatePluginConfiguration(PLUGIN_ID, config);
+        }).then(function () {
+            return fetch(API_BASE + '/sync', { method: 'POST', headers: apiHeaders() });
+        }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function (data) { showToast(data.message || 'Sync gestartet.'); })
+        .catch(function () { showToast('Fehler beim Starten der Synchronisation.'); });
     }
 
     // -----------------------------------------------------------------------
