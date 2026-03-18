@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -16,15 +17,21 @@ public class ChannelSyncTask : IScheduledTask
 {
     private readonly YouTubeApiService _youtube;
     private readonly StrmService _strm;
+    private readonly ILibraryManager _library;
     private readonly ILogger<ChannelSyncTask> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChannelSyncTask"/> class.
     /// </summary>
-    public ChannelSyncTask(YouTubeApiService youtube, StrmService strm, ILogger<ChannelSyncTask> logger)
+    public ChannelSyncTask(
+        YouTubeApiService youtube,
+        StrmService strm,
+        ILibraryManager library,
+        ILogger<ChannelSyncTask> logger)
     {
         _youtube = youtube;
         _strm    = strm;
+        _library = library;
         _logger  = logger;
     }
 
@@ -102,5 +109,8 @@ public class ChannelSyncTask : IScheduledTask
         }
 
         _logger.LogInformation("JellyTubbing sync finished.");
+
+        // Trigger library scan so Jellyfin picks up the new STRM files
+        _ = _library.ValidateMediaLibrary(new Progress<double>(), CancellationToken.None);
     }
 }
