@@ -117,12 +117,13 @@ public class YouTubeApiService
     // Channel videos (public – API key only)
     // -----------------------------------------------------------------------
 
-    /// <summary>Returns the most recent videos from a YouTube channel.</summary>
+    /// <summary>Returns the most recent videos from a YouTube channel, optionally excluding Shorts.</summary>
     public async Task<List<(string VideoId, YouTubeVideoSnippet Snippet)>> GetChannelVideosAsync(
         string channelId, int maxResults, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(ApiKey)) return new();
 
+        var includeShorts = Plugin.Instance?.Configuration.IncludeShorts ?? false;
         var result = new List<(string, YouTubeVideoSnippet)>();
         string? pageToken = null;
         var remaining = maxResults;
@@ -140,8 +141,29 @@ public class YouTubeApiService
                 var resp = await client.GetFromJsonAsync<YouTubeSearchListResponse>(url, ct);
                 if (resp?.Items is null) break;
 
+                // Fetch durations for this batch to filter out Shorts
+                var ids = string.Join(",", resp.Items.Select(i => Uri.EscapeDataString(i.Id.VideoId)));
+                var durations = new Dictionary<string, TimeSpan>();
+                if (!includeShorts)
+                {
+                    var detailUrl = $"{Base}/videos?part=contentDetails&id={ids}&key={Uri.EscapeDataString(ApiKey)}";
+                    var details = await client.GetFromJsonAsync<YouTubeVideoListResponse>(detailUrl, ct);
+                    if (details?.Items is not null)
+                    {
+                        foreach (var v in details.Items)
+                        {
+                            if (!string.IsNullOrEmpty(v.ContentDetails?.Duration))
+                                durations[v.Id] = ParseDuration(v.ContentDetails.Duration);
+                        }
+                    }
+                }
+
                 foreach (var item in resp.Items)
+                {
+                    if (!includeShorts && durations.TryGetValue(item.Id.VideoId, out var dur) && dur.TotalSeconds <= 60)
+                        continue;
                     result.Add((item.Id.VideoId, item.Snippet));
+                }
 
                 pageToken  = resp.NextPageToken;
                 remaining -= resp.Items.Length;
@@ -155,6 +177,12 @@ public class YouTubeApiService
         while (pageToken is not null && remaining > 0);
 
         return result;
+    }
+
+    private static TimeSpan ParseDuration(string iso)
+    {
+        try { return System.Xml.XmlConvert.ToTimeSpan(iso); }
+        catch { return TimeSpan.Zero; }
     }
 
     // -----------------------------------------------------------------------

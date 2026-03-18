@@ -36,6 +36,7 @@
             document.getElementById('OAuthClientSecret').value  = config.OAuthClientSecret || '';
             document.getElementById('StrmOutputPath').value     = config.StrmOutputPath || '';
             document.getElementById('MaxVideosPerChannel').value = config.MaxVideosPerChannel || 25;
+            document.getElementById('IncludeShorts').checked     = !!config.IncludeShorts;
             document.getElementById('YtDlpBinaryPath').value    = config.YtDlpBinaryPath || '';
             document.getElementById('PreferredQuality').value   = config.PreferredQuality || '720p';
             document.getElementById('TrendingRegion').value     = config.TrendingRegion || 'DE';
@@ -53,6 +54,7 @@
             config.OAuthClientSecret   = document.getElementById('OAuthClientSecret').value.trim();
             config.StrmOutputPath      = document.getElementById('StrmOutputPath').value.trim();
             config.MaxVideosPerChannel = parseInt(document.getElementById('MaxVideosPerChannel').value, 10) || 25;
+            config.IncludeShorts       = document.getElementById('IncludeShorts').checked;
             config.YtDlpBinaryPath     = document.getElementById('YtDlpBinaryPath').value.trim();
             config.PreferredQuality    = document.getElementById('PreferredQuality').value;
             config.TrendingRegion      = document.getElementById('TrendingRegion').value;
@@ -292,6 +294,7 @@
             config.OAuthClientSecret   = document.getElementById('OAuthClientSecret').value.trim();
             config.StrmOutputPath      = document.getElementById('StrmOutputPath').value.trim();
             config.MaxVideosPerChannel = parseInt(document.getElementById('MaxVideosPerChannel').value, 10) || 25;
+            config.IncludeShorts       = document.getElementById('IncludeShorts').checked;
             config.YtDlpBinaryPath     = document.getElementById('YtDlpBinaryPath').value.trim();
             config.PreferredQuality    = document.getElementById('PreferredQuality').value;
             config.TrendingRegion      = document.getElementById('TrendingRegion').value;

@@ -49,6 +49,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets maximum number of videos to sync per channel.</summary>
     public int MaxVideosPerChannel { get; set; } = 25;
 
+    /// <summary>Gets or sets whether YouTube Shorts (≤ 60 s) are included in the sync.</summary>
+    public bool IncludeShorts { get; set; } = false;
+
     // -----------------------------------------------------------------------
     // Streaming / yt-dlp
     // -----------------------------------------------------------------------

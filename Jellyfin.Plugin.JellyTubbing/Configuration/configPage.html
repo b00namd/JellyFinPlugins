@@ -152,13 +152,19 @@
                         Ordner auf dem Server fuer STRM-/NFO-/Thumbnail-Dateien. Fuge diesen Ordner als Jellyfin-Bibliothek (Typ: Film) hinzu.
                     </div>
                 </div>
-                <div style="margin-bottom:0.8em;">
+                <div style="margin-bottom:0.8em; display:flex; gap:1.5em; flex-wrap:wrap; align-items:flex-end;">
                     <div class="inputContainer" style="margin:0;">
                         <label class="inputLabel" for="MaxVideosPerChannel">Max. Videos pro Kanal</label>
                         <input id="MaxVideosPerChannel" type="number" is="emby-input" style="max-width:80px;" min="1" max="500" />
-                        <div class="fieldDescription">Den Sync-Zeitplan konfigurierst du unter <em>Administration → Geplante Aufgaben → JellyTubbing</em>.</div>
+                    </div>
+                    <div class="inputContainer" style="margin:0;">
+                        <label style="display:flex; align-items:center; gap:0.5em; cursor:pointer;">
+                            <input id="IncludeShorts" type="checkbox" />
+                            <span>YouTube Shorts einschliessen (&#8804;&nbsp;60&nbsp;s)</span>
+                        </label>
                     </div>
                 </div>
+                <div class="fieldDescription" style="margin-bottom:0.8em;">Den Sync-Zeitplan konfigurierst du unter <em>Administration → Geplante Aufgaben → JellyTubbing</em>.</div>
 
                 <div id="jt-subs-container">
                     <p class="jt-info" id="jt-subs-hint">Verbinde dein Google-Konto, um Abonnements zu laden.</p>
