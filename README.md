@@ -58,32 +58,97 @@ Lädt YouTube-Videos und Playlists direkt in die Mediathek. Nutzt [yt-dlp](https
 
 ## JellyTubbing
 
-Streamt YouTube-Videos direkt in Jellyfin – ohne Download. Nutzt [Invidious](https://invidious.io) als primäre Quelle für Stream-URLs, mit [yt-dlp](https://github.com/yt-dlp/yt-dlp) als automatischem Fallback.
+Streamt YouTube-Videos direkt in Jellyfin – ohne Download.
 
-Nach der Installation erscheint JellyTubbing als **Kanal** in Jellyfin (Dashboard → Kanäle).
+- **Trending-Kanal:** YouTube-Trending-Videos nach Region und Kategorie direkt in Jellyfin durchsuchen und abspielen
+- **Abo-Synchronisation:** Abonnierte Kanäle werden als `.strm`-Dateien in eine Jellyfin-Bibliothek synchronisiert und sind dort durchsuchbar und abspielbar
+
+Stream-URLs werden bei jedem Abspielen frisch über [yt-dlp](https://github.com/yt-dlp/yt-dlp) aufgelöst – keine Vorablösung, keine abgelaufenen Links.
 
 ### Features
 
-- Trending-Videos direkt in Jellyfin durchsuchen und abspielen
-- Suche über die Jellyfin-Suchfunktion
-- Invidious als primäre Stream-Quelle (keine YouTube-API notwendig)
-- Automatischer yt-dlp-Fallback wenn Invidious keinen Stream liefert
-- Konfigurierbare bevorzugte Qualität (360p–1080p)
-- Konfigurierbare Trending-Region (z. B. DE, US)
-- Konnektivitätstest für die Invidious-Instanz direkt in den Einstellungen
+- Trending-Videos nach Region (DE, AT, CH, US, …) in Jellyfin browsbar
+- Kategorien: Trending, Musik, Gaming, Nachrichten, Filme
+- Abonnierte Kanäle mit Google-Konto verbinden und als Bibliothek synchronisieren
+- Automatischer Bibliotheks-Scan nach jedem Sync
+- Sync-Zeitplan über Jellyfin-Aufgabenplanung konfigurierbar (Standard: alle 24 h)
+- Manueller Sync-Trigger direkt im Plugin
+- Google-Verbindung per Device Authorization Grant (kein Redirect-URI, kein öffentlicher Server nötig)
+- Client-Secret per JSON-Datei importieren
+- yt-dlp-Verfügbarkeitscheck in den Einstellungen
+- Stream-Qualität konfigurierbar (360p–1080p)
 
 ### Einstellungen
 
 | Einstellung | Beschreibung |
 |---|---|
-| Invidious-Instanz URL | URL einer Invidious-Instanz (eigene empfohlen) |
-| yt-dlp Programmpfad | Optionaler Pfad zur yt-dlp-Binary für den Fallback |
-| Bevorzugte Qualität | Maximale Stream-Auflösung (360p, 480p, 720p, 1080p) |
+| YouTube Data API Key | Erforderlich für Trending und Kanal-Videos |
+| OAuth2 Client-ID / Secret | Erforderlich für Abo-Synchronisation |
+| STRM-Ausgabeordner | Zielordner für `.strm`-, `.nfo`- und Thumbnail-Dateien |
+| Max. Videos pro Kanal | Wie viele Videos pro Kanal beim Sync geholt werden (Standard: 25) |
+| yt-dlp Programmpfad | Optional – leer lassen wenn yt-dlp im PATH liegt |
+| Bevorzugte Qualität | Stream-Auflösung (360p, 480p, 720p, 1080p) |
 | Trending-Region | ISO 3166-1 alpha-2 Ländercode (z. B. DE, US, GB) |
 
-### Invidious-Instanz
+---
 
-Eine eigene Invidious-Instanz ist am zuverlässigsten. Öffentliche Instanzen: [api.invidious.io](https://api.invidious.io)
+### Einrichtung Schritt für Schritt
+
+#### 1. YouTube Data API Key erstellen
+
+1. [Google Cloud Console](https://console.cloud.google.com/) öffnen
+2. Neues Projekt anlegen (oder bestehendes wählen)
+3. **APIs & Dienste → Bibliothek → „YouTube Data API v3"** aktivieren
+4. **APIs & Dienste → Anmeldedaten → Anmeldedaten erstellen → API-Schlüssel**
+5. Den generierten Key im Plugin unter **YouTube Data API Key** eintragen
+
+#### 2. OAuth2-Credentials für Abo-Synchronisation erstellen
+
+> Nur nötig, wenn abonnierte Kanäle synchronisiert werden sollen.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Dienste → OAuth-Zustimmungsbildschirm**
+   - Typ: **Extern**
+   - App-Name, Support-E-Mail und Entwickler-E-Mail ausfüllen
+   - Unter **Scopes** → `youtube.readonly` hinzufügen
+   - Unter **Testnutzer** die eigene Google-E-Mail-Adresse eintragen
+2. **Anmeldedaten → Anmeldedaten erstellen → OAuth-Client-ID**
+   - Anwendungstyp: **Fernseher und eingeschränkte Eingabegeräte**
+   - Beliebigen Namen vergeben
+3. Client-ID und Client-Secret notieren (oder JSON-Datei herunterladen)
+
+#### 3. Credentials im Plugin eintragen
+
+Im Jellyfin Dashboard → **Plugins → JellyTubbing → Einstellungen**:
+
+- **JSON importieren:** Heruntergeladene `client_secret_*.json` direkt hochladen – Client-ID und Secret werden automatisch eingetragen
+- Oder Client-ID und Client-Secret manuell eintragen
+
+#### 4. Mit Google verbinden
+
+1. **Mit Google verbinden** klicken
+2. Es erscheint ein Code und eine URL (`accounts.google.com/device`)
+3. Die URL in einem beliebigen Browser öffnen, den Code eingeben und mit dem Google-Konto bestätigen
+4. Das Plugin erkennt die Bestätigung automatisch – Status wechselt zu **Mit Google verbunden**
+
+#### 5. Kanäle auswählen
+
+Nach erfolgreicher Verbindung erscheint die Liste aller abonnierten Kanäle. Kanäle, die synchronisiert werden sollen, anhaken.
+
+#### 6. STRM-Ausgabeordner als Jellyfin-Bibliothek einrichten
+
+> Einmalig notwendig, damit Jellyfin die synchronisierten Videos anzeigt.
+
+1. Jellyfin Dashboard → **Mediatheken → Mediathek hinzufügen**
+2. Typ: **Videos** (oder Mixed Content)
+3. Ordner: den konfigurierten **STRM-Ausgabeordner** auswählen
+4. Speichern und Bibliothek scannen lassen
+
+#### 7. Synchronisieren
+
+- **Jetzt synchronisieren** im Plugin klickt – speichert die Einstellungen und startet den Sync sofort
+- Oder den Zeitplan unter **Dashboard → Geplante Aufgaben → JellyTubbing → Kanal-Synchronisation** konfigurieren (Standard: täglich)
+
+Nach dem Sync erscheinen die Videos automatisch in der Jellyfin-Bibliothek (Ordner pro Kanal).
 
 ---
 
@@ -111,7 +176,10 @@ Nach der Installation muss Jellyfin neu gestartet werden.
 
 ## Docker Compose – Schnellstart
 
-Wer Jellyfin und Invidious noch nicht betreibt, kann mit dieser Vorlage beide Dienste starten:
+> **Hinweis:** JellyTubbing benötigt kein Invidious mehr. Für JellyTubbing reicht Jellyfin allein.
+> Die nachfolgende Vorlage enthält Invidious nur noch für JellyTube (direktes Streaming als Alternative zu yt-dlp).
+
+Wer Jellyfin noch nicht betreibt, kann mit dieser Vorlage starten:
 
 ```yaml
 services:
@@ -218,8 +286,10 @@ docker compose up -d
 ## Voraussetzungen
 
 - Jellyfin 10.9.x oder neuer
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) auf dem Server installiert
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) auf dem Server installiert (für beide Plugins)
 - [ffmpeg](https://ffmpeg.org/) für Containerkonvertierung (mp4/mkv) – nur für JellyTube
+- YouTube Data API Key – für JellyTubbing (Trending + Kanal-Sync)
+- Google OAuth2-Credentials – für JellyTubbing (Abo-Synchronisation)
 
 yt-dlp und ffmpeg können entweder im Systempfad (PATH) liegen oder der vollständige Pfad wird in den Plugin-Einstellungen angegeben.
 
