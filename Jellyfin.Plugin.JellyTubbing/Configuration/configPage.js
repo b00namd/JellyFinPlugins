@@ -242,13 +242,10 @@
     function renderSubscriptions(subs, listEl) {
         if (!listEl) return;
         listEl.innerHTML = '';
-        var synced = window._jtSyncedIds || [];
 
         // Checked channels first, then alphabetical within each group
         subs.sort(function (a, b) {
-            var aChecked = synced.indexOf(a.channelId) >= 0;
-            var bChecked = synced.indexOf(b.channelId) >= 0;
-            if (aChecked !== bChecked) return aChecked ? -1 : 1;
+            if (a.synced !== b.synced) return a.synced ? -1 : 1;
             return a.title.localeCompare(b.title);
         });
 
@@ -260,7 +257,7 @@
             cb.type = 'checkbox';
             cb.className = 'jt-sub-checkbox';
             cb.dataset.channelId = sub.channelId;
-            cb.checked = synced.indexOf(sub.channelId) >= 0;
+            cb.checked = !!sub.synced;
             cb.style.flexShrink = '0';
 
             var img = document.createElement('img');
