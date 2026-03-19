@@ -30,6 +30,7 @@ public class JellyTubbingController : ControllerBase
     private readonly OAuthService _oauth;
     private readonly YouTubeApiService _youtube;
     private readonly StreamResolverService _resolver;
+    private readonly HlsTranscodeService _hls;
     private readonly ChannelSyncTask _sync;
 
     /// <summary>
@@ -39,11 +40,13 @@ public class JellyTubbingController : ControllerBase
         OAuthService oauth,
         YouTubeApiService youtube,
         StreamResolverService resolver,
+        HlsTranscodeService hls,
         ChannelSyncTask sync)
     {
         _oauth    = oauth;
         _youtube  = youtube;
         _resolver = resolver;
+        _hls      = hls;
         _sync     = sync;
     }
 
@@ -180,72 +183,71 @@ public class JellyTubbingController : ControllerBase
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Resolves a YouTube video ID and streams it to the client.
-    /// Combined streams (≤720p): 302 redirect (seeking supported).
-    /// DASH streams (1080p+): ffmpeg pipe merging video+audio (-c copy, no re-encoding).
+    /// Resolves a YouTube video and delivers it to the client.
+    /// Combined streams (≤720p): 302 redirect to YouTube CDN (seeking works).
+    /// DASH streams (1080p+): 302 redirect to our HLS endpoint (seeking works via segments).
     /// </summary>
     [HttpGet("stream/{videoId}")]
     [AllowAnonymous]
-    public async Task StreamVideo(string videoId, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status302Found)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> StreamVideo(string videoId, CancellationToken ct)
     {
         var (videoUrl, audioUrl) = await _resolver.ResolveUrlsAsync(videoId, ct);
 
         if (string.IsNullOrEmpty(videoUrl))
-        {
-            Response.StatusCode = StatusCodes.Status404NotFound;
-            await Response.WriteAsync($"Stream fuer {videoId} konnte nicht aufgeloest werden.", ct);
-            return;
-        }
+            return NotFound(new { message = $"Stream fuer {videoId} konnte nicht aufgeloest werden." });
 
-        // Combined stream: simple redirect – client can seek normally
+        // Combined stream: direct redirect – seeking fully supported
         if (string.IsNullOrEmpty(audioUrl))
-        {
-            Response.Redirect(videoUrl);
-            return;
-        }
+            return Redirect(videoUrl);
 
-        // DASH: merge video + audio with ffmpeg stream copy (no re-encoding)
-        var config  = Plugin.Instance!.Configuration;
-        var ffmpeg  = string.IsNullOrWhiteSpace(config.FfmpegBinaryPath) ? "ffmpeg" : config.FfmpegBinaryPath;
+        // DASH: redirect to HLS endpoint which segments video+audio for seeking support
+        return Redirect($"/api/jellytubbing/hls/{videoId}/index.m3u8");
+    }
 
-        Response.ContentType = "video/x-matroska";
-        Response.Headers["Content-Disposition"] = "inline; filename=\"stream.mkv\"";
+    // -----------------------------------------------------------------------
+    // HLS endpoints (1080p+ DASH streams)
+    // -----------------------------------------------------------------------
 
-        var psi = new ProcessStartInfo
-        {
-            FileName               = ffmpeg,
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-            CreateNoWindow         = true,
-        };
-        psi.ArgumentList.Add("-hide_banner");
-        psi.ArgumentList.Add("-loglevel"); psi.ArgumentList.Add("error");
-        psi.ArgumentList.Add("-i");        psi.ArgumentList.Add(videoUrl);
-        psi.ArgumentList.Add("-i");        psi.ArgumentList.Add(audioUrl);
-        psi.ArgumentList.Add("-c");        psi.ArgumentList.Add("copy");
-        psi.ArgumentList.Add("-f");        psi.ArgumentList.Add("matroska");
-        psi.ArgumentList.Add("pipe:1");
+    /// <summary>
+    /// Returns the HLS playlist for a DASH video.
+    /// Starts ffmpeg transcoding in the background if not already running.
+    /// </summary>
+    [HttpGet("hls/{videoId}/index.m3u8")]
+    [AllowAnonymous]
+    [Produces("application/vnd.apple.mpegurl")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> GetHlsPlaylist(string videoId, CancellationToken ct)
+    {
+        var (videoUrl, audioUrl) = await _resolver.ResolveUrlsAsync(videoId, ct);
 
-        using var proc = new Process { StartInfo = psi };
-        proc.Start();
+        if (string.IsNullOrEmpty(videoUrl) || string.IsNullOrEmpty(audioUrl))
+            return NotFound(new { message = $"DASH-URLs fuer {videoId} nicht verfuegbar." });
 
-        try
-        {
-            await proc.StandardOutput.BaseStream.CopyToAsync(Response.Body, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            // Client disconnected – expected
-        }
-        finally
-        {
-            if (!proc.HasExited)
-            {
-                proc.Kill();
-                await proc.WaitForExitAsync(CancellationToken.None);
-            }
-        }
+        var playlistPath = await _hls.EnsureReadyAsync(videoId, videoUrl, audioUrl, ct);
+        if (playlistPath is null)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { message = "HLS-Transcodierung konnte nicht gestartet werden." });
+
+        var content = await System.IO.File.ReadAllTextAsync(playlistPath, ct);
+        return Content(content, "application/vnd.apple.mpegurl");
+    }
+
+    /// <summary>Serves an individual HLS segment (.ts file).</summary>
+    [HttpGet("hls/{videoId}/{segment}")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetHlsSegment(string videoId, string segment)
+    {
+        var path = _hls.GetFilePath(videoId, segment);
+        if (path is null)
+            return NotFound();
+
+        return PhysicalFile(path, "video/mp2t");
     }
 
     // -----------------------------------------------------------------------

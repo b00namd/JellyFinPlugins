@@ -15,7 +15,7 @@
             REST API endpoints for the JellyTubbing plugin.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.#ctor(Jellyfin.Plugin.JellyTubbing.Services.OAuthService,Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService,Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.#ctor(Jellyfin.Plugin.JellyTubbing.Services.OAuthService,Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService,Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService,Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask)">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController"/> class.
             </summary>
@@ -46,10 +46,19 @@
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.StreamVideo(System.String,System.Threading.CancellationToken)">
             <summary>
-            Resolves a YouTube video ID and streams it to the client.
-            Combined streams (≤720p): 302 redirect (seeking supported).
-            DASH streams (1080p+): ffmpeg pipe merging video+audio (-c copy, no re-encoding).
+            Resolves a YouTube video and delivers it to the client.
+            Combined streams (≤720p): 302 redirect to YouTube CDN (seeking works).
+            DASH streams (1080p+): 302 redirect to our HLS endpoint (seeking works via segments).
             </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetHlsPlaylist(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns the HLS playlist for a DASH video.
+            Starts ffmpeg transcoding in the background if not already running.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetHlsSegment(System.String,System.String)">
+            <summary>Serves an individual HLS segment (.ts file).</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Channel.JellyTubbingChannel">
             <summary>
@@ -260,6 +269,31 @@
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.ExecuteAsync(System.IProgress{System.Double},System.Threading.CancellationToken)">
             <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService">
+            <summary>
+            Manages per-video HLS transcoding sessions for DASH streams (1080p+).
+            ffmpeg merges separate video+audio streams into HLS segments on disk,
+            enabling seeking within the transcoded range.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService})">
+            <summary>Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService"/> class.</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.EnsureReadyAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Ensures a transcoding session exists and has produced at least one segment.
+            Returns the path to the M3U8 playlist file, or null on timeout/error.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.GetFilePath(System.String,System.String)">
+            <summary>Returns the full path to a playlist or segment file, or null if not found.</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsSession.WaitReadyAsync(System.Threading.CancellationToken)">
+            <summary>Starts ffmpeg (once) and waits until the first segment is on disk.</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.OAuthService">
             <summary>
