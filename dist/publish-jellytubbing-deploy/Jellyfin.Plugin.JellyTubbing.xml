@@ -292,7 +292,7 @@
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService">
             <summary>
             Resolves a YouTube video ID to a direct stream URL via yt-dlp.
-            Used by the JellyTubbing channel for on-demand trending video playback.
+            Resolved URLs are cached for 4 hours so repeated playback starts instantly.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService})">
@@ -304,7 +304,9 @@
             <summary>Resolves a YouTube video ID to a <see cref="T:MediaBrowser.Model.Dto.MediaSourceInfo"/> via yt-dlp.</summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.ResolveUrlAsync(System.String,System.Threading.CancellationToken)">
-            <summary>Resolves a YouTube video URL to a direct stream URL string via yt-dlp -g.</summary>
+            <summary>
+            Returns a cached or freshly resolved direct stream URL for the given video ID.
+            </summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.StrmService">
             <summary>

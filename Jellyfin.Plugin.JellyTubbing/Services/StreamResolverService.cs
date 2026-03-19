@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -11,10 +12,15 @@ namespace Jellyfin.Plugin.JellyTubbing.Services;
 
 /// <summary>
 /// Resolves a YouTube video ID to a direct stream URL via yt-dlp.
-/// Used by the JellyTubbing channel for on-demand trending video playback.
+/// Resolved URLs are cached for 4 hours so repeated playback starts instantly.
 /// </summary>
 public class StreamResolverService
 {
+    // YouTube CDN URLs are valid for ~6 hours; cache for 4 h to be safe
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(4);
+
+    private static readonly ConcurrentDictionary<string, (string Url, DateTime Expiry)> _cache = new();
+
     private readonly ILogger<StreamResolverService> _logger;
 
     /// <summary>
@@ -28,10 +34,10 @@ public class StreamResolverService
     /// <summary>Resolves a YouTube video ID to a <see cref="MediaSourceInfo"/> via yt-dlp.</summary>
     public async Task<IEnumerable<MediaSourceInfo>> ResolveAsync(string videoId, CancellationToken ct)
     {
-        var streamUrl = await ResolveViaYtDlpAsync(videoId, ct);
+        var streamUrl = await ResolveUrlAsync(videoId, ct);
         if (!string.IsNullOrEmpty(streamUrl))
         {
-            _logger.LogInformation("Resolved stream for {VideoId} via yt-dlp.", videoId);
+            _logger.LogInformation("Resolved stream for {VideoId}.", videoId);
             return new[] { BuildSource(videoId, streamUrl) };
         }
 
@@ -39,9 +45,28 @@ public class StreamResolverService
         return Array.Empty<MediaSourceInfo>();
     }
 
-    /// <summary>Resolves a YouTube video URL to a direct stream URL string via yt-dlp -g.</summary>
+    /// <summary>
+    /// Returns a cached or freshly resolved direct stream URL for the given video ID.
+    /// </summary>
     public async Task<string?> ResolveUrlAsync(string videoId, CancellationToken ct)
-        => await ResolveViaYtDlpAsync(videoId, ct);
+    {
+        // Serve from cache if still valid
+        if (_cache.TryGetValue(videoId, out var cached) && DateTime.UtcNow < cached.Expiry)
+        {
+            _logger.LogDebug("Cache hit for {VideoId}.", videoId);
+            return cached.Url;
+        }
+
+        var url = await ResolveViaYtDlpAsync(videoId, ct);
+
+        if (!string.IsNullOrEmpty(url))
+        {
+            _cache[videoId] = (url, DateTime.UtcNow.Add(CacheTtl));
+            PruneCache();
+        }
+
+        return url;
+    }
 
     // -------------------------------------------------------------------------
 
@@ -50,8 +75,18 @@ public class StreamResolverService
         var config = Plugin.Instance!.Configuration;
         var binary = string.IsNullOrWhiteSpace(config.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
         var height = ParseHeight(config.PreferredQuality ?? "720p");
-        var format = $"best[height<={height}][ext=mp4]/best[height<={height}]/best[ext=mp4]/best";
-        var ytUrl  = $"https://www.youtube.com/watch?v={videoId}";
+
+        // Select the best combined (muxed) stream that contains both video and audio.
+        // YouTube only offers combined streams up to ~720p; higher resolutions use
+        // separate DASH streams (video+audio) which cannot be served via a single redirect.
+        // Fallback chain: mp4 with audio → any container with audio → best available.
+        var format = $"best[height<={height}][vcodec!=none][acodec!=none][ext=mp4]" +
+                     $"/best[height<={height}][vcodec!=none][acodec!=none]" +
+                     $"/best[vcodec!=none][acodec!=none][ext=mp4]" +
+                     $"/best[vcodec!=none][acodec!=none]" +
+                     $"/best";
+
+        var ytUrl = $"https://www.youtube.com/watch?v={videoId}";
 
         try
         {
@@ -59,8 +94,9 @@ public class StreamResolverService
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName               = binary,
-                    Arguments              = $"-g --format \"{format}\" -- {ytUrl}",
+                    FileName  = binary,
+                    Arguments = $"-g --no-warnings --no-playlist" +
+                                $" --format \"{format}\" -- {ytUrl}",
                     RedirectStandardOutput = true,
                     RedirectStandardError  = true,
                     UseShellExecute        = false,
@@ -75,6 +111,7 @@ public class StreamResolverService
             var output = await proc.StandardOutput.ReadToEndAsync(cts.Token);
             await proc.WaitForExitAsync(cts.Token);
 
+            // yt-dlp -g returns one URL per line; take the first (video stream)
             var url = output.Split('\n')[0].Trim();
             return string.IsNullOrEmpty(url) ? null : url;
         }
@@ -82,6 +119,16 @@ public class StreamResolverService
         {
             _logger.LogError(ex, "yt-dlp stream resolution failed for {VideoId}", videoId);
             return null;
+        }
+    }
+
+    private static void PruneCache()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var key in _cache.Keys)
+        {
+            if (_cache.TryGetValue(key, out var entry) && now >= entry.Expiry)
+                _cache.TryRemove(key, out _);
         }
     }
 
