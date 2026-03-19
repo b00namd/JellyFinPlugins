@@ -78,11 +78,22 @@ public class JellyTubbingController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> CheckTools()
     {
-        var bin = Plugin.Instance?.Configuration.YtDlpBinaryPath;
-        if (string.IsNullOrWhiteSpace(bin)) bin = "yt-dlp";
+        var config = Plugin.Instance?.Configuration;
 
-        var (available, version, error) = await TryGetVersionAsync(bin, "--version");
-        return Ok(new { ytDlpAvailable = available, ytDlpVersion = version, ytDlpError = error });
+        var ytdlpBin = string.IsNullOrWhiteSpace(config?.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
+        var ffmpegBin = string.IsNullOrWhiteSpace(config?.FfmpegBinaryPath) ? "ffmpeg" : config.FfmpegBinaryPath;
+
+        var (ytDlpOk, ytDlpVer, ytDlpErr) = await TryGetVersionAsync(ytdlpBin, "--version");
+        var (ffmpegOk, ffmpegVer, ffmpegErr) = await TryGetVersionAsync(ffmpegBin, "-version");
+
+        // ffmpeg -version outputs multiple lines; keep only the first
+        var ffmpegVerShort = ffmpegVer?.Split('\n')[0].Trim();
+
+        return Ok(new
+        {
+            ytDlpAvailable  = ytDlpOk,  ytDlpVersion  = ytDlpVer,      ytDlpError  = ytDlpErr,
+            ffmpegAvailable = ffmpegOk, ffmpegVersion = ffmpegVerShort, ffmpegError = ffmpegErr,
+        });
     }
 
     // -----------------------------------------------------------------------

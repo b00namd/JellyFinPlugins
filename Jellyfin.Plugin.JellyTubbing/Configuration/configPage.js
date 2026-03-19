@@ -77,21 +77,30 @@
     // -----------------------------------------------------------------------
 
     function checkYtDlp() {
-        var el = document.getElementById('jt-ytdlp-status');
-        el.innerHTML = '<span class="jt-info">&#8987; yt-dlp wird geprueft...</span>';
+        var elYt = document.getElementById('jt-ytdlp-status');
+        var elFf = document.getElementById('jt-ffmpeg-status');
+        elYt.innerHTML = '<span class="jt-info">&#8987; yt-dlp wird geprueft...</span>';
+        elFf.innerHTML = '<span class="jt-info">&#8987; ffmpeg wird geprueft...</span>';
 
         fetch(API_BASE + '/check-tools', { headers: apiHeaders() })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
             .then(function (data) {
                 if (data.ytDlpAvailable) {
-                    el.innerHTML = '<span class="jt-ok">&#10003;</span> yt-dlp ' + (data.ytDlpVersion || '');
+                    elYt.innerHTML = '<span class="jt-ok">&#10003;</span> yt-dlp ' + (data.ytDlpVersion || '');
                 } else {
-                    el.innerHTML = '<span class="jt-err">&#10007;</span> yt-dlp nicht gefunden' +
+                    elYt.innerHTML = '<span class="jt-err">&#10007;</span> yt-dlp nicht gefunden' +
                         (data.ytDlpError ? ' (' + data.ytDlpError + ')' : '');
+                }
+                if (data.ffmpegAvailable) {
+                    elFf.innerHTML = '<span class="jt-ok">&#10003;</span> ffmpeg ' + (data.ffmpegVersion || '');
+                } else {
+                    elFf.innerHTML = '<span class="jt-info">&#9432;</span> ffmpeg nicht gefunden' +
+                        ' <span class="jt-info">(nur fuer 1080p benoetigt)</span>';
                 }
             })
             .catch(function () {
-                el.innerHTML = '<span class="jt-err">&#10007;</span> Fehler';
+                elYt.innerHTML = '<span class="jt-err">&#10007;</span> Fehler';
+                elFf.innerHTML = '<span class="jt-err">&#10007;</span> Fehler';
             });
     }
 
