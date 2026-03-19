@@ -30,11 +30,13 @@ public class StrmService
     /// </summary>
     public async Task CreateVideoFilesAsync(
         string channelName,
+        string channelId,
         string videoId,
         string title,
         string description,
         string publishedAt,
         string thumbnailUrl,
+        int durationSeconds,
         CancellationToken ct)
     {
         var config = Plugin.Instance?.Configuration;
@@ -64,7 +66,10 @@ public class StrmService
         var nfoPath = Path.Combine(channelDir, baseName + ".nfo");
         if (!File.Exists(nfoPath))
         {
-            await File.WriteAllTextAsync(nfoPath, BuildNfo(title, description, publishedAt, videoId), Encoding.UTF8, ct);
+            await File.WriteAllTextAsync(
+                nfoPath,
+                BuildNfo(title, description, publishedAt, videoId, channelName, channelId, thumbnailUrl, durationSeconds),
+                Encoding.UTF8, ct);
         }
 
         // thumbnail
@@ -89,16 +94,36 @@ public class StrmService
 
     // -------------------------------------------------------------------------
 
-    private static string BuildNfo(string title, string description, string publishedAt, string videoId)
+    private static string BuildNfo(
+        string title, string description, string publishedAt, string videoId,
+        string channelName, string channelId, string thumbnailUrl, int durationSeconds)
     {
-        var year = DateTime.TryParse(publishedAt, out var dt) ? dt.Year.ToString() : string.Empty;
+        var hasDate  = DateTime.TryParse(publishedAt, out var dt);
+        var year     = hasDate ? dt.Year.ToString() : string.Empty;
+        var premiered = hasDate ? dt.ToString("yyyy-MM-dd") : string.Empty;
+        var runtime  = durationSeconds > 0 ? ((int)(durationSeconds / 60.0 + 0.5)).ToString() : string.Empty;
+        var ytUrl    = $"https://www.youtube.com/watch?v={videoId}";
+        var chanUrl  = string.IsNullOrEmpty(channelId) ? string.Empty
+                       : $"https://www.youtube.com/channel/{channelId}";
+
+        var thumb = string.IsNullOrEmpty(thumbnailUrl)
+            ? string.Empty
+            : "\n  <thumb aspect=\"poster\">" + Xml(thumbnailUrl) + "</thumb>" +
+              "\n  <fanart>\n    <thumb>" + Xml(thumbnailUrl) + "</thumb>\n  </fanart>";
+
         return $"""
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <movie>
   <title>{Xml(title)}</title>
-  <year>{year}</year>
+  <originaltitle>{Xml(title)}</originaltitle>
   <plot>{Xml(description)}</plot>
-  <uniqueid type="youtube">{videoId}</uniqueid>
+  <year>{year}</year>
+  <premiered>{premiered}</premiered>
+  <studio>{Xml(channelName)}</studio>
+  <runtime>{runtime}</runtime>
+  <uniqueid type="youtube" default="true">{videoId}</uniqueid>
+  <source>{Xml(ytUrl)}</source>
+  <tag>{Xml(chanUrl)}</tag>{thumb}
 </movie>
 """;
     }

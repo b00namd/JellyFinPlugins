@@ -316,7 +316,7 @@
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.StrmService"/> class.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StrmService.CreateVideoFilesAsync(System.String,System.String,System.String,System.String,System.String,System.String,System.Threading.CancellationToken)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StrmService.CreateVideoFilesAsync(System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.Threading.CancellationToken)">
             <summary>
             Creates .strm / .nfo / thumbnail for a single video if they do not already exist.
             </summary>

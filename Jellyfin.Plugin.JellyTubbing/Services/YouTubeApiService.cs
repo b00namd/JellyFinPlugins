@@ -118,13 +118,13 @@ public class YouTubeApiService
     // -----------------------------------------------------------------------
 
     /// <summary>Returns the most recent videos from a YouTube channel, optionally excluding Shorts.</summary>
-    public async Task<List<(string VideoId, YouTubeVideoSnippet Snippet)>> GetChannelVideosAsync(
+    public async Task<List<(string VideoId, YouTubeVideoSnippet Snippet, TimeSpan Duration)>> GetChannelVideosAsync(
         string channelId, int maxResults, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(ApiKey)) return new();
 
         var includeShorts = Plugin.Instance?.Configuration.IncludeShorts ?? false;
-        var result = new List<(string, YouTubeVideoSnippet)>();
+        var result = new List<(string, YouTubeVideoSnippet, TimeSpan)>();
         string? pageToken = null;
         var remaining = maxResults;
 
@@ -141,28 +141,26 @@ public class YouTubeApiService
                 var resp = await client.GetFromJsonAsync<YouTubeSearchListResponse>(url, ct);
                 if (resp?.Items is null) break;
 
-                // Fetch durations for this batch to filter out Shorts
+                // Always fetch contentDetails for duration (NFO metadata + Shorts filter)
                 var ids = string.Join(",", resp.Items.Select(i => Uri.EscapeDataString(i.Id.VideoId)));
                 var durations = new Dictionary<string, TimeSpan>();
-                if (!includeShorts)
+                var detailUrl = $"{Base}/videos?part=contentDetails&id={ids}&key={Uri.EscapeDataString(ApiKey)}";
+                var details = await client.GetFromJsonAsync<YouTubeVideoListResponse>(detailUrl, ct);
+                if (details?.Items is not null)
                 {
-                    var detailUrl = $"{Base}/videos?part=contentDetails&id={ids}&key={Uri.EscapeDataString(ApiKey)}";
-                    var details = await client.GetFromJsonAsync<YouTubeVideoListResponse>(detailUrl, ct);
-                    if (details?.Items is not null)
+                    foreach (var v in details.Items)
                     {
-                        foreach (var v in details.Items)
-                        {
-                            if (!string.IsNullOrEmpty(v.ContentDetails?.Duration))
-                                durations[v.Id] = ParseDuration(v.ContentDetails.Duration);
-                        }
+                        if (!string.IsNullOrEmpty(v.ContentDetails?.Duration))
+                            durations[v.Id] = ParseDuration(v.ContentDetails.Duration);
                     }
                 }
 
                 foreach (var item in resp.Items)
                 {
-                    if (!includeShorts && durations.TryGetValue(item.Id.VideoId, out var dur) && dur.TotalSeconds <= 60)
+                    var dur = durations.TryGetValue(item.Id.VideoId, out var d) ? d : TimeSpan.Zero;
+                    if (!includeShorts && dur.TotalSeconds > 0 && dur.TotalSeconds <= 60)
                         continue;
-                    result.Add((item.Id.VideoId, item.Snippet));
+                    result.Add((item.Id.VideoId, item.Snippet, dur));
                 }
 
                 pageToken  = resp.NextPageToken;

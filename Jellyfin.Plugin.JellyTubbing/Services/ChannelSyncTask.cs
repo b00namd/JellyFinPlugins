@@ -97,15 +97,17 @@ public class ChannelSyncTask : IScheduledTask
             try
             {
                 var videos = await _youtube.GetChannelVideosAsync(channelId, config.MaxVideosPerChannel, ct);
-                foreach (var (videoId, snippet) in videos)
+                foreach (var (videoId, snippet, duration) in videos)
                 {
                     await _strm.CreateVideoFilesAsync(
                         channelName,
+                        channelId,
                         videoId,
                         snippet.Title,
                         snippet.Description,
                         snippet.PublishedAt,
                         snippet.Thumbnails.BestUrl,
+                        (int)duration.TotalSeconds,
                         ct);
                 }
 
@@ -141,11 +143,23 @@ public class ChannelSyncTask : IScheduledTask
             }
 
             _logger.LogInformation("JellyTubbing: Creating library 'JellyTubbing' at '{Path}'.", strmPath);
-            _library.AddVirtualFolder(
-                "JellyTubbing",
-                CollectionTypeOptions.homevideos,
-                new LibraryOptions { PathInfos = [new MediaPathInfo { Path = strmPath }] },
-                refreshLibrary: false);
+            var opts = new LibraryOptions
+            {
+                PathInfos = [new MediaPathInfo { Path = strmPath }],
+                SaveLocalMetadata = true,
+                TypeOptions =
+                [
+                    new TypeOptions
+                    {
+                        Type                  = "Movie",
+                        MetadataFetchers      = ["Nfo"],
+                        MetadataFetcherOrder  = ["Nfo"],
+                        ImageFetchers         = ["Image Extractor"],
+                        ImageFetcherOrder     = ["Image Extractor"],
+                    }
+                ]
+            };
+            _library.AddVirtualFolder("JellyTubbing", CollectionTypeOptions.homevideos, opts, refreshLibrary: false);
         }
         catch (Exception ex)
         {
