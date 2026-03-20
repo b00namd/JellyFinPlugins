@@ -36,6 +36,16 @@ public class LibraryOrganizationService
     }
 
     /// <summary>
+    /// Returns the base directory for a playlist download (no metadata available yet).
+    /// </summary>
+    /// <param name="overrideBasePath">Optional base path override.</param>
+    public string GetPlaylistDirectory(string? overrideBasePath = null)
+    {
+        var config = Plugin.Instance!.Configuration;
+        return string.IsNullOrWhiteSpace(overrideBasePath) ? config.DownloadPath : overrideBasePath;
+    }
+
+    /// <summary>
     /// Returns the .nfo file path that corresponds to a given video file path.
     /// </summary>
     public static string GetNfoPath(string videoFilePath)

@@ -15,7 +15,7 @@
             REST API endpoints for the JellyTubbing plugin.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.#ctor(Jellyfin.Plugin.JellyTubbing.Services.OAuthService,Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService,Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.#ctor(Jellyfin.Plugin.JellyTubbing.Services.OAuthService,Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService,Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService,Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask)">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController"/> class.
             </summary>
@@ -46,14 +46,24 @@
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.StreamVideo(System.String,System.Threading.CancellationToken)">
             <summary>
-            Resolves a YouTube video ID to a direct stream URL and returns a 302 redirect.
-            Used by the .strm files generated for subscribed channels.
+            Resolves a YouTube video and delivers it to the client.
+            Combined streams (≤720p): 302 redirect to YouTube CDN (seeking works).
+            DASH streams (1080p+): 302 redirect to our HLS endpoint (seeking works via segments).
             </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetHlsPlaylist(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns the HLS playlist for a DASH video.
+            Starts ffmpeg transcoding in the background if not already running.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetHlsSegment(System.String,System.String)">
+            <summary>Serves an individual HLS segment (.ts file).</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Channel.JellyTubbingChannel">
             <summary>
             Jellyfin channel that shows YouTube trending videos via the YouTube Data API.
-            Subscribed channels are synced separately as STRM files via <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService"/>.
+            Subscribed channels are synced separately as STRM files via <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask"/>.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Channel.JellyTubbingChannel.#ctor(Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService)">
@@ -126,14 +136,17 @@
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.SyncedChannelIds">
             <summary>Gets or sets the channel IDs to synchronise as STRM files.</summary>
         </member>
-        <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.SyncIntervalHours">
-            <summary>Gets or sets how often (hours) the background sync runs.</summary>
-        </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.MaxVideosPerChannel">
             <summary>Gets or sets maximum number of videos to sync per channel.</summary>
         </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.IncludeShorts">
+            <summary>Gets or sets whether YouTube Shorts (≤ 60 s) are included in the sync.</summary>
+        </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.YtDlpBinaryPath">
             <summary>Gets or sets the optional path to the yt-dlp binary.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.FfmpegBinaryPath">
+            <summary>Gets or sets the optional path to the ffmpeg binary (used for 1080p DASH merging).</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.PreferredQuality">
             <summary>Gets or sets the preferred stream quality (360p, 480p, 720p, 1080p).</summary>
@@ -228,6 +241,60 @@
         <member name="M:Jellyfin.Plugin.JellyTubbing.ServiceRegistrator.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,MediaBrowser.Controller.IServerApplicationHost)">
             <inheritdoc />
         </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask">
+            <summary>
+            Jellyfin scheduled task that syncs subscribed YouTube channels to STRM files.
+            Appears under Administration → Scheduled Tasks → JellyTubbing.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.#ctor(Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StrmService,MediaBrowser.Controller.Library.ILibraryManager,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask"/> class.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.Name">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.Key">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.Description">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.Category">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.GetDefaultTriggers">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.ExecuteAsync(System.IProgress{System.Double},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService">
+            <summary>
+            Manages per-video HLS transcoding sessions for DASH streams (1080p+).
+            ffmpeg merges separate video+audio streams into HLS segments on disk,
+            enabling seeking within the transcoded range.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService})">
+            <summary>Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService"/> class.</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.EnsureReadyAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Ensures a transcoding session exists and has produced at least one segment.
+            Returns the path to the M3U8 playlist file, or null on timeout/error.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.GetFilePath(System.String,System.String)">
+            <summary>Returns the full path to a playlist or segment file, or null if not found.</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsSession.WaitReadyAsync(System.Threading.CancellationToken)">
+            <summary>Starts ffmpeg (once) and waits until the first segment is on disk.</summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.OAuthService">
             <summary>
             Handles Google OAuth2 Device Authorization Grant (RFC 8628) for YouTube read-only access.
@@ -262,8 +329,9 @@
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService">
             <summary>
-            Resolves a YouTube video ID to a direct stream URL via yt-dlp.
-            Used by the JellyTubbing channel for on-demand trending video playback.
+            Resolves a YouTube video ID to direct stream URL(s) via yt-dlp.
+            For 1080p+, yt-dlp returns separate video and audio URLs (DASH).
+            Resolved URLs are cached for 4 hours so repeated playback starts instantly.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService})">
@@ -274,8 +342,11 @@
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.ResolveAsync(System.String,System.Threading.CancellationToken)">
             <summary>Resolves a YouTube video ID to a <see cref="T:MediaBrowser.Model.Dto.MediaSourceInfo"/> via yt-dlp.</summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.ResolveUrlAsync(System.String,System.Threading.CancellationToken)">
-            <summary>Resolves a YouTube video URL to a direct stream URL string via yt-dlp -g.</summary>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.ResolveUrlsAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns cached or freshly resolved stream URLs.
+            For combined streams: Audio is null. For DASH (1080p+): both Video and Audio are set.
+            </summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.StrmService">
             <summary>
@@ -287,32 +358,10 @@
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.StrmService"/> class.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StrmService.CreateVideoFilesAsync(System.String,System.String,System.String,System.String,System.String,System.String,System.Threading.CancellationToken)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StrmService.CreateVideoFilesAsync(System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.Threading.CancellationToken)">
             <summary>
             Creates .strm / .nfo / thumbnail for a single video if they do not already exist.
             </summary>
-        </member>
-        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService">
-            <summary>
-            Background service that periodically syncs subscribed YouTube channels to STRM files.
-            </summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService.#ctor(Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StrmService,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService})">
-            <summary>
-            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService"/> class.
-            </summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService.StartAsync(System.Threading.CancellationToken)">
-            <inheritdoc />
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService.StopAsync(System.Threading.CancellationToken)">
-            <inheritdoc />
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService.TriggerSyncAsync(System.Threading.CancellationToken)">
-            <summary>Triggers a manual sync immediately.</summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.SyncBackgroundService.Dispose">
-            <inheritdoc />
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService">
             <summary>
@@ -334,7 +383,7 @@
             <summary>Returns all subscriptions of the authenticated user (paginates automatically).</summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService.GetChannelVideosAsync(System.String,System.Int32,System.Threading.CancellationToken)">
-            <summary>Returns the most recent videos from a YouTube channel.</summary>
+            <summary>Returns the most recent videos from a YouTube channel, optionally excluding Shorts.</summary>
         </member>
     </members>
 </doc>

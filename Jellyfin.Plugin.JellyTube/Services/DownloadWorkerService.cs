@@ -96,27 +96,35 @@ public class DownloadWorkerService : BackgroundService
 
         job.StartedAt = DateTime.UtcNow;
 
-        // Step 1 – fetch metadata
-        job.Status = DownloadJobStatus.FetchingMetadata;
-        var meta = await _ytDlp.FetchMetadataAsync(job.Url, ct);
+        // Step 1 – fetch metadata (single videos only; playlists write per-video .info.json during download)
+        VideoMetadata? meta = null;
+        string outputDir;
 
-        if (meta is null)
+        if (job.IsPlaylist)
         {
-            job.Status = DownloadJobStatus.Failed;
-            job.ErrorMessage = "Metadaten konnten nicht abgerufen werden.";
-            job.CompletedAt = DateTime.UtcNow;
-            _logger.LogWarning("Job {Id} failed at metadata step.", job.Id);
-            return;
+            job.Status = DownloadJobStatus.Downloading;
+            outputDir = _library.GetPlaylistDirectory(job.OverrideDownloadPath);
         }
+        else
+        {
+            job.Status = DownloadJobStatus.FetchingMetadata;
+            meta = await _ytDlp.FetchMetadataAsync(job.Url, ct);
 
-        job.Metadata = meta;
+            if (meta is null)
+            {
+                job.Status = DownloadJobStatus.Failed;
+                job.ErrorMessage = "Metadaten konnten nicht abgerufen werden.";
+                job.CompletedAt = DateTime.UtcNow;
+                _logger.LogWarning("Job {Id} failed at metadata step.", job.Id);
+                return;
+            }
 
-        // Step 2 – determine output directory and download
-        var outputDir = _library.GetVideoDirectory(meta, job.OverrideDownloadPath);
+            job.Metadata = meta;
+            outputDir = _library.GetVideoDirectory(meta, job.OverrideDownloadPath);
+        }
         Directory.CreateDirectory(outputDir);
 
         job.Status = DownloadJobStatus.Downloading;
-
         var downloadProgress = new Progress<YoutubeDLSharp.DownloadProgress>(dp =>
         {
             job.ProgressPercent = dp.Progress;
@@ -126,7 +134,7 @@ public class DownloadWorkerService : BackgroundService
         var archivePath = job.IsScheduled ? _archive.ArchivePath : null;
 
         bool success = job.IsPlaylist
-            ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath, job.MaxAgeDays)
+            ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath, job.MaxAgeDays, job.IsScheduled)
             : await _ytDlp.DownloadVideoAsync(job.Url, outputDir, downloadProgress, ct, archivePath);
 
         if (!success && !job.IsPlaylist)
@@ -162,6 +170,14 @@ public class DownloadWorkerService : BackgroundService
                 if (videoFile is not null)
                 {
                     job.DownloadedFilePath = videoFile;
+
+                    // Write marker file so WatchedVideoCleanupService can delete the file even after a restart
+                    if (job.IsScheduled && job.DeleteWatched)
+                    {
+                        var markerPath = Path.ChangeExtension(videoFile, ".delete-watched");
+                        try { await File.WriteAllTextAsync(markerPath, string.Empty, ct); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "Could not write delete-watched marker for '{Path}'.", videoFile); }
+                    }
 
                     if (config.WriteNfoFiles)
                     {

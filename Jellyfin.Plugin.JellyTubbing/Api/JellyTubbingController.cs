@@ -210,7 +210,7 @@ public class JellyTubbingController : ControllerBase
         if (string.IsNullOrEmpty(audioUrl))
             return Redirect(videoUrl);
 
-        // DASH: redirect to HLS endpoint which segments video+audio for seeking support
+        // DASH: redirect to HLS endpoint which segments video+audio (requires ffmpeg)
         return Redirect($"/api/jellytubbing/hls/{videoId}/index.m3u8");
     }
 

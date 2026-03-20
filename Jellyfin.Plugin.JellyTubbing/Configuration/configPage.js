@@ -92,7 +92,7 @@
                         (data.ytDlpError ? ' (' + data.ytDlpError + ')' : '');
                 }
                 if (data.ffmpegAvailable) {
-                    elFf.innerHTML = '<span class="jt-ok">&#10003;</span> ffmpeg ' + (data.ffmpegVersion || '');
+                    elFf.innerHTML = '<span class="jt-ok">&#10003;</span> ' + (data.ffmpegVersion || '').split(' ').slice(0, 3).join(' ');
                 } else {
                     elFf.innerHTML = '<span class="jt-info">&#9432;</span> ffmpeg nicht gefunden' +
                         ' <span class="jt-info">(nur fuer 1080p benoetigt)</span>';

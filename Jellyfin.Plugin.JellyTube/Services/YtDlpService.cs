@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTube.Models;
@@ -99,27 +100,107 @@ public class YtDlpService
         IProgress<DownloadProgress>? progress,
         CancellationToken ct,
         string? archivePath = null,
-        int maxAgeDays = 0)
+        int maxAgeDays = 0,
+        bool isScheduled = false)
     {
-        var ytdl = CreateClient(outputDir);
         var config = Plugin.Instance!.Configuration;
-        var opts = BuildSubtitleOptions(playlist: true, archivePath: archivePath, maxAgeDays: maxAgeDays);
+        var binary = string.IsNullOrWhiteSpace(config.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
+        var mergeFormat = config.PreferredContainer?.ToLowerInvariant() switch
+        {
+            "mkv"  => "mkv",
+            "webm" => "webm",
+            _      => "mp4",
+        };
 
         try
         {
-            var result = await ytdl.RunVideoPlaylistDownload(
-                url,
-                format: config.VideoFormat,
-                ct: ct,
-                progress: progress,
-                overrideOptions: opts);
-            if (!result.Success)
+            var psi = new ProcessStartInfo
             {
-                _logger.LogWarning("Playlist download failed for {Url}: {Error}",
-                    url, string.Join("; ", result.ErrorOutput));
+                FileName               = binary,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            };
+
+            psi.ArgumentList.Add("--yes-playlist");
+            psi.ArgumentList.Add("--ignore-errors");
+            psi.ArgumentList.Add("--no-overwrites");
+            psi.ArgumentList.Add("--write-info-json");
+            psi.ArgumentList.Add("--extractor-args");
+            psi.ArgumentList.Add("youtube:player_client=android,web");
+            psi.ArgumentList.Add("-o");
+            psi.ArgumentList.Add(System.IO.Path.Combine(outputDir, "%(title)s - %(id)s.%(ext)s"));
+
+            if (!string.IsNullOrWhiteSpace(config.VideoFormat))
+            {
+                psi.ArgumentList.Add("--format");
+                psi.ArgumentList.Add(config.VideoFormat);
             }
 
-            return result.Success;
+            psi.ArgumentList.Add("--merge-output-format");
+            psi.ArgumentList.Add(mergeFormat);
+
+            if (!string.IsNullOrWhiteSpace(config.FfmpegBinaryPath))
+            {
+                psi.ArgumentList.Add("--ffmpeg-location");
+                psi.ArgumentList.Add(config.FfmpegBinaryPath);
+            }
+
+            if (config.DownloadThumbnails)
+                psi.ArgumentList.Add("--write-thumbnail");
+
+            if (config.DownloadSubtitles)
+            {
+                psi.ArgumentList.Add("--write-auto-subs");
+                psi.ArgumentList.Add("--write-subs");
+                if (!string.IsNullOrWhiteSpace(config.SubtitleLanguages))
+                {
+                    psi.ArgumentList.Add("--sub-langs");
+                    psi.ArgumentList.Add(config.SubtitleLanguages);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.DefaultAudioLanguage))
+            {
+                psi.ArgumentList.Add("--postprocessor-args");
+                psi.ArgumentList.Add($"ffmpeg:-metadata:s:a:0 language={config.DefaultAudioLanguage.Trim()}");
+            }
+
+            var effectiveMaxAge = maxAgeDays > 0 ? maxAgeDays : (isScheduled ? config.PlaylistMaxAgeDays : 0);
+            if (effectiveMaxAge > 0)
+            {
+                psi.ArgumentList.Add("--dateafter");
+                psi.ArgumentList.Add(DateTime.UtcNow.AddDays(-effectiveMaxAge).ToString("yyyyMMdd"));
+                psi.ArgumentList.Add("--break-on-reject");
+            }
+
+            if (!string.IsNullOrEmpty(archivePath))
+            {
+                psi.ArgumentList.Add("--download-archive");
+                psi.ArgumentList.Add(archivePath);
+                psi.ArgumentList.Add("--break-on-existing");
+            }
+
+            psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add(url);
+
+            _logger.LogInformation("yt-dlp playlist download starting: {Url} → {Dir}", url, outputDir);
+
+            using var proc = new Process { StartInfo = psi };
+            proc.Start();
+
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
+            var stderrTask = proc.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(stdoutTask, stderrTask);
+            await proc.WaitForExitAsync(ct);
+
+            var stderr = stderrTask.Result.Trim();
+            if (!string.IsNullOrEmpty(stderr))
+                _logger.LogInformation("yt-dlp stderr: {Stderr}", stderr);
+
+            _logger.LogInformation("yt-dlp playlist download finished, exit code {Code}", proc.ExitCode);
+            return proc.ExitCode == 0;
         }
         catch (Exception ex)
         {
@@ -159,23 +240,24 @@ public class YtDlpService
             _ => DownloadMergeFormat.Mp4
         };
 
-    private static OptionSet BuildSubtitleOptions(bool playlist, string? archivePath = null, int maxAgeDays = 0)
+    private static OptionSet BuildSubtitleOptions(bool playlist, string? archivePath = null, int maxAgeDays = 0, bool isScheduled = false)
     {
         var config = Plugin.Instance!.Configuration;
 
         var opts = new OptionSet
         {
-            WriteThumbnail = config.DownloadThumbnails,
-            WriteAutoSubs = config.DownloadSubtitles,
-            WriteSubs = config.DownloadSubtitles,
-            SubLangs = config.DownloadSubtitles ? config.SubtitleLanguages : null,
-            NoPlaylist = !playlist,
-            WriteInfoJson = playlist,  // write per-video .info.json so metadata can be read back for all items
-            IgnoreErrors = playlist    // skip unavailable/deleted videos instead of aborting the whole playlist
+            WriteThumbnail  = config.DownloadThumbnails,
+            WriteAutoSubs   = config.DownloadSubtitles,
+            WriteSubs       = config.DownloadSubtitles,
+            SubLangs        = config.DownloadSubtitles ? config.SubtitleLanguages : null,
+            NoPlaylist      = !playlist,
+            WriteInfoJson   = playlist,  // write per-video .info.json so metadata can be read back for all items
+            IgnoreErrors    = playlist,  // skip unavailable/deleted videos instead of aborting the whole playlist
+            ExtractorArgs   = "youtube:player_client=android,web",  // bypass JS runtime requirement
         };
 
-        // Per-entry maxAgeDays takes priority; fall back to global setting
-        var effectiveMaxAge = maxAgeDays > 0 ? maxAgeDays : config.PlaylistMaxAgeDays;
+        // Per-entry maxAgeDays takes priority; global fallback only for scheduled runs (not manual downloads)
+        var effectiveMaxAge = maxAgeDays > 0 ? maxAgeDays : (isScheduled ? config.PlaylistMaxAgeDays : 0);
         if (playlist && effectiveMaxAge > 0)
         {
             opts.DateAfter = DateTime.UtcNow.AddDays(-effectiveMaxAge);

@@ -25,7 +25,8 @@ public sealed class HlsTranscodeService : IDisposable
     public HlsTranscodeService(ILogger<HlsTranscodeService> logger)
     {
         _logger = logger;
-        Directory.CreateDirectory(TempBase);
+        try { Directory.CreateDirectory(TempBase); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Could not create HLS temp dir {Dir}", TempBase); }
     }
 
     /// <summary>

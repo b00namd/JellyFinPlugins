@@ -74,11 +74,16 @@ public class WatchedVideoCleanupService : IHostedService
             j.DownloadedFilePath != null &&
             string.Equals(j.DownloadedFilePath, filePath, StringComparison.OrdinalIgnoreCase));
 
-        if (job is null)
+        // Marker file is written at download time and survives restarts
+        var markerPath = Path.ChangeExtension(filePath, ".delete-watched");
+        var hasMarker = File.Exists(markerPath);
+
+        if (job is null && !hasMarker)
             return;
 
-        // Per-job setting takes priority; fall back to global DeleteWatchedScheduledVideos
-        if (!job.DeleteWatched && !config.DeleteWatchedScheduledVideos)
+        // Per-job setting or marker takes priority; fall back to global DeleteWatchedScheduledVideos
+        var shouldDelete = hasMarker || (job?.DeleteWatched ?? false) || config.DeleteWatchedScheduledVideos;
+        if (!shouldDelete)
             return;
 
         _logger.LogInformation("Watched scheduled video '{Path}', deleting file.", filePath);

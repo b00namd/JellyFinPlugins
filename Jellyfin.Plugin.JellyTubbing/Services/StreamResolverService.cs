@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Model.Dto;
@@ -78,51 +79,54 @@ public class StreamResolverService
         var binary = string.IsNullOrWhiteSpace(config.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
         var height = ParseHeight(config.PreferredQuality ?? "720p");
 
-        // For ≤720p: use combined (muxed) streams – no ffmpeg needed, seeking works natively.
-        // For 1080p+: request DASH (separate video+audio) – yt-dlp prints two URLs,
-        //             HlsTranscodeService merges them with ffmpeg for seeking support.
-        string format;
-        if (height <= 720)
-        {
-            format = $"best[height<={height}][vcodec!=none][acodec!=none][ext=mp4]" +
-                     $"/best[height<={height}][vcodec!=none][acodec!=none]" +
-                     $"/best[vcodec!=none][acodec!=none]" +
-                     $"/best";
-        }
-        else
-        {
-            format = $"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]" +
-                     $"/bestvideo[height<={height}]+bestaudio" +
-                     $"/best[height<={height}][vcodec!=none][acodec!=none]" +
-                     $"/best";
-        }
+        // Try combined (muxed) stream first – one URL, no ffmpeg, seeking works natively.
+        // Fall back to DASH (two URLs) → HlsTranscodeService merges with ffmpeg for seeking.
+        // The "best[height<=N]" selector picks the best combined format up to N pixels tall
+        // (YouTube offers combined up to ~360p; DASH covers 720p/1080p/4K).
+        var format = $"best[height<={height}]/bestvideo[height<={height}]+bestaudio/best";
 
         var ytUrl = $"https://www.youtube.com/watch?v={videoId}";
 
         try
         {
-            using var proc = new Process
+            var psi = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName  = binary,
-                    Arguments = $"-g --no-warnings --no-playlist --format \"{format}\" -- {ytUrl}",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError  = true,
-                    UseShellExecute        = false,
-                    CreateNoWindow         = true,
-                }
+                FileName               = binary,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
             };
+            psi.ArgumentList.Add("-g");
+            psi.ArgumentList.Add("--no-warnings");
+            psi.ArgumentList.Add("--no-playlist");
+            psi.ArgumentList.Add("--format");
+            psi.ArgumentList.Add(format);
+            psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add(ytUrl);
+
+            using var proc = new Process { StartInfo = psi };
             proc.Start();
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
 
-            var output = await proc.StandardOutput.ReadToEndAsync(cts.Token);
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
+            var stderrTask = proc.StandardError.ReadToEndAsync(cts.Token);
+            await Task.WhenAll(stdoutTask, stderrTask);
             await proc.WaitForExitAsync(cts.Token);
 
-            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (lines.Length == 0) return (null, null);
+            var lines = stdoutTask.Result
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(l => l.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            if (lines.Length == 0)
+            {
+                var stderr = stderrTask.Result.Trim();
+                _logger.LogWarning("yt-dlp returned no URLs for {VideoId}. stderr: {Stderr}", videoId, stderr);
+                return (null, null);
+            }
 
             // Two lines = DASH (video URL + audio URL), one line = combined
             return lines.Length >= 2
