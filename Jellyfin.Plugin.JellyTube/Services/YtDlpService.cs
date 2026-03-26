@@ -127,8 +127,6 @@ public class YtDlpService
             psi.ArgumentList.Add("--ignore-errors");
             psi.ArgumentList.Add("--no-overwrites");
             psi.ArgumentList.Add("--write-info-json");
-            psi.ArgumentList.Add("--extractor-args");
-            psi.ArgumentList.Add("youtube:player_client=web");
             psi.ArgumentList.Add("-o");
             var outputTemplate = config.OrganiseByChannel
                 ? System.IO.Path.Combine(outputDir, "%(channel)s", "%(title)s - %(id)s.%(ext)s")
@@ -256,7 +254,6 @@ public class YtDlpService
             NoPlaylist      = !playlist,
             WriteInfoJson   = playlist,  // write per-video .info.json so metadata can be read back for all items
             IgnoreErrors    = playlist,  // skip unavailable/deleted videos instead of aborting the whole playlist
-            ExtractorArgs   = "youtube:player_client=web",
         };
 
         // Per-entry maxAgeDays takes priority; global fallback only for scheduled runs (not manual downloads)

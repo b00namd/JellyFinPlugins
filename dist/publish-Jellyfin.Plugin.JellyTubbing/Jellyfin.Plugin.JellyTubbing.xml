@@ -140,7 +140,7 @@
             <summary>Gets or sets maximum number of videos to sync per channel.</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.IncludeShorts">
-            <summary>Gets or sets whether YouTube Shorts (≤ 60 s) are included in the sync.</summary>
+            <summary>Gets or sets whether YouTube Shorts (≤ 120 s) are included in the sync.</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.YtDlpBinaryPath">
             <summary>Gets or sets the optional path to the yt-dlp binary.</summary>

@@ -162,7 +162,7 @@
                     <div class="inputContainer" style="margin:0;">
                         <label style="display:flex; align-items:center; gap:0.5em; cursor:pointer;">
                             <input id="IncludeShorts" type="checkbox" />
-                            <span>YouTube Shorts einschliessen (&#8804;&nbsp;60&nbsp;s)</span>
+                            <span>YouTube Shorts einschliessen (&#8804;&nbsp;120&nbsp;s)</span>
                         </label>
                     </div>
                 </div>
@@ -205,6 +205,8 @@
                 <div class="inputContainer">
                     <label class="inputLabel" for="PreferredQuality">Bevorzugte Qualitaet</label>
                     <select id="PreferredQuality" is="emby-select" style="max-width:160px;">
+                        <option value="2160p">4K (2160p)</option>
+                        <option value="1440p">2K (1440p)</option>
                         <option value="1080p">1080p</option>
                         <option value="720p">720p (Standard)</option>
                         <option value="480p">480p</option>

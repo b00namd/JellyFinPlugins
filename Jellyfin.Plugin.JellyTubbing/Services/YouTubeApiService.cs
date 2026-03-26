@@ -158,7 +158,7 @@ public class YouTubeApiService
                 foreach (var item in resp.Items)
                 {
                     var dur = durations.TryGetValue(item.Id.VideoId, out var d) ? d : TimeSpan.Zero;
-                    if (!includeShorts && dur.TotalSeconds > 0 && dur.TotalSeconds <= 60)
+                    if (!includeShorts && dur.TotalSeconds > 0 && dur.TotalSeconds <= 120)
                         continue;
                     result.Add((item.Id.VideoId, item.Snippet, dur));
                 }

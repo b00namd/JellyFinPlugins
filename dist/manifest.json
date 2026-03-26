@@ -5,8 +5,8 @@
                          {
                              "changelog":  "Initiale Version",
                              "version":  "1.0.0.0",
-                             "checksum":  "9d172e0a19fd68f299362f81941c9be1",
-                             "timestamp":  "2026-03-26T06:09:05Z",
+                             "checksum":  "be269fae61a3f082aef4e66915fd51ea",
+                             "timestamp":  "2026-03-26T13:34:44Z",
                              "targetAbi":  "10.9.0.0",
                              "sourceUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.0.0.zip"
                          }
@@ -24,8 +24,8 @@
                          {
                              "changelog":  "Initiale Version",
                              "version":  "1.0.0.0",
-                             "checksum":  "05628801d3a8df51ae71a0cbf3b82891",
-                             "timestamp":  "2026-03-26T06:09:05Z",
+                             "checksum":  "51473145cad5618e538ae0be779f2832",
+                             "timestamp":  "2026-03-26T13:34:44Z",
                              "targetAbi":  "10.9.0.0",
                              "sourceUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.0.0.0.zip"
                          }

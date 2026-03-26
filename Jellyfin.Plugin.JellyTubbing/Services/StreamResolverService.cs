@@ -98,8 +98,6 @@ public class StreamResolverService
             psi.ArgumentList.Add("-g");
             psi.ArgumentList.Add("--no-warnings");
             psi.ArgumentList.Add("--no-playlist");
-            psi.ArgumentList.Add("--extractor-args");
-            psi.ArgumentList.Add("youtube:player_client=tv_embedded,web");
             psi.ArgumentList.Add("--format");
             psi.ArgumentList.Add(format);
             psi.ArgumentList.Add("--");
