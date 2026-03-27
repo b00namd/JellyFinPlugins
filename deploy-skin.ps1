@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory)][string]$Skin,
     [string]$ServerUser = "henny",
     [string]$ServerHost = "192.168.1.5",
-    [string]$SkinsDir   = "/home/henny/docker/cloud/config/data/skins",
+    [string]$SkinsDir   = "/home/henny/docker/cloud/config/data/data/skins",
     [switch]$RestartJellyfin
 )
 

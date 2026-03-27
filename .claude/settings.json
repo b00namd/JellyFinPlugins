@@ -13,10 +13,23 @@
       "Bash(xxd \"c:\\\\Users\\\\b00na\\\\Nextcloud2\\\\Projekte\\\\JellyFin YT\\\\build.ps1\")",
       "Bash(unix2dos \"c:\\\\Users\\\\b00na\\\\Nextcloud2\\\\Projekte\\\\JellyFin YT\\\\build.ps1\")",
       "Bash(powershell -command \"[System.Reflection.Assembly]::LoadFrom\\(''C:/Users/b00na/.nuget/packages/jellyfin.controller/10.9.11/lib/net8.0/MediaBrowser.Controller.dll''\\).GetTypes\\(\\) | Where-Object { $_.Name -like ''*Search*'' -or $_.Name -like ''*Channel*'' } | Select-Object -ExpandProperty FullName\")",
-      "WebSearch"
+      "WebSearch",
+      "Read(//c/Users/b00na/.nuget/packages/jellyfin.model/10.9.11/**)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(rm -rf Jellyfin.Plugin.FinSkin/.git)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File build.ps1 -BaseUrl \"https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist\" -RepoUrl \"https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File deploy-skin.ps1 -Skin FinModern)",
+      "Bash(ssh henny@192.168.1.5 \"ls /home/henny/docker/cloud/config/data/skins/ 2>/dev/null && echo OK || echo ''Verzeichnis nicht gefunden''\")",
+      "Bash(ssh henny@192.168.1.5 \"docker inspect jellyfin | grep -A20 ''Mounts''\")"
     ],
     "additionalDirectories": [
-      "\\tmp\\JFTest"
+      "\\tmp\\JFTest",
+      "C:\\Users\\b00na\\Nextcloud2\\Projekte\\JellyFinPlugins\\Jellyfin.Plugin.FinSkin\\.git",
+      "C:\\Users\\b00na\\Nextcloud2\\Projekte\\JellyFinPlugins"
     ]
   }
 }
