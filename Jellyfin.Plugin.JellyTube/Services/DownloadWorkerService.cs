@@ -173,13 +173,10 @@ public class DownloadWorkerService : BackgroundService
 
                 if (videoFile is not null)
                 {
-                    job.DownloadedFilePath = videoFile;
-
-                    // Write marker file so WatchedVideoCleanupService can delete the file even after a restart
                     if (shouldWriteDeleteMarker)
                     {
                         var markerPath = Path.ChangeExtension(videoFile, ".delete-watched");
-                        try { await File.WriteAllTextAsync(markerPath, string.Empty, ct); }
+                        try { await File.WriteAllTextAsync(markerPath, meta.VideoId, ct); }
                         catch (Exception ex) { _logger.LogWarning(ex, "Could not write delete-watched marker for '{Path}'.", videoFile); }
                     }
 
@@ -195,6 +192,9 @@ public class DownloadWorkerService : BackgroundService
                         await _thumbs.DownloadThumbnailAsync(meta.ThumbnailUrl, thumbPath, ct);
                         await _thumbs.EnsureChannelPosterAsync(outputDir, meta.ThumbnailUrl, ct);
                     }
+
+                    videoFile = RenameToCleanTitle(videoFile, meta.VideoId) ?? videoFile;
+                    job.DownloadedFilePath = videoFile;
                 }
                 else
                 {
@@ -220,7 +220,8 @@ public class DownloadWorkerService : BackgroundService
         var config = Plugin.Instance!.Configuration;
         string? lastThumbnailUrl = null;
 
-        foreach (var jsonPath in Directory.EnumerateFiles(outputDir, "*.info.json"))
+        var infoJsonFiles = Directory.EnumerateFiles(outputDir, "*.info.json").ToList();
+        foreach (var jsonPath in infoJsonFiles)
         {
             var videoMeta = await ParseInfoJsonAsync(jsonPath, ct);
             if (videoMeta is null || string.IsNullOrEmpty(videoMeta.VideoId))
@@ -233,7 +234,7 @@ public class DownloadWorkerService : BackgroundService
             if (writeDeleteMarker)
             {
                 var markerPath = Path.ChangeExtension(videoFile, ".delete-watched");
-                try { await File.WriteAllTextAsync(markerPath, string.Empty, ct); }
+                try { await File.WriteAllTextAsync(markerPath, videoMeta.VideoId, ct); }
                 catch (Exception ex) { _logger.LogWarning(ex, "Could not write delete-watched marker for '{Path}'.", videoFile); }
             }
 
@@ -250,13 +251,15 @@ public class DownloadWorkerService : BackgroundService
                     await _thumbs.DownloadThumbnailAsync(videoMeta.ThumbnailUrl, thumbPath, ct);
                 lastThumbnailUrl = videoMeta.ThumbnailUrl;
             }
+
+            RenameToCleanTitle(videoFile, videoMeta.VideoId);
         }
 
         if (config.DownloadThumbnails && lastThumbnailUrl is not null)
             await _thumbs.EnsureChannelPosterAsync(outputDir, lastThumbnailUrl, ct);
     }
 
-    private static async Task<VideoMetadata?> ParseInfoJsonAsync(string jsonPath, CancellationToken ct)
+    private async Task<VideoMetadata?> ParseInfoJsonAsync(string jsonPath, CancellationToken ct)
     {
         try
         {
@@ -296,8 +299,9 @@ public class DownloadWorkerService : BackgroundService
                     : Array.Empty<string>()
             };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to parse info JSON '{Path}'.", jsonPath);
             return null;
         }
     }
@@ -335,6 +339,53 @@ public class DownloadWorkerService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error while killing orphaned yt-dlp processes on startup.");
+        }
+    }
+
+    private string? RenameToCleanTitle(string videoFile, string videoId)
+    {
+        var dir = Path.GetDirectoryName(videoFile);
+        if (dir is null)
+            return null;
+
+        var oldStem = Path.GetFileNameWithoutExtension(videoFile);
+        var suffix = $" - {videoId}";
+
+        if (!oldStem.EndsWith(suffix, StringComparison.Ordinal))
+            return null;
+
+        var cleanStem = oldStem[..^suffix.Length];
+        if (string.IsNullOrWhiteSpace(cleanStem))
+            return null;
+
+        var ext = Path.GetExtension(videoFile);
+        var newVideoPath = Path.Combine(dir, cleanStem + ext);
+
+        if (File.Exists(newVideoPath))
+        {
+            int counter = 2;
+            while (File.Exists(Path.Combine(dir, $"{cleanStem} ({counter}){ext}")))
+                counter++;
+            cleanStem = $"{cleanStem} ({counter})";
+            newVideoPath = Path.Combine(dir, cleanStem + ext);
+        }
+
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(dir, $"{oldStem}*").ToList())
+            {
+                var fileName = Path.GetFileName(file);
+                var newFileName = cleanStem + fileName[oldStem.Length..];
+                File.Move(file, Path.Combine(dir, newFileName));
+            }
+
+            _logger.LogInformation("Renamed '{OldStem}' → '{NewStem}'.", oldStem, cleanStem);
+            return newVideoPath;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not rename '{Path}' to clean title.", videoFile);
+            return null;
         }
     }
 

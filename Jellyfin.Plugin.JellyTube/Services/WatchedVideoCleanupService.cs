@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTube.Models;
@@ -183,21 +184,84 @@ public class WatchedVideoCleanupService : IHostedService
     {
         _logger.LogInformation("Watched video '{Path}', deleting file.", filePath);
 
-        // Extract video ID from filename (pattern: "Title - <videoId>.ext") and add to archive
+        if (string.IsNullOrWhiteSpace(videoId))
+            videoId = TryExtractVideoId(filePath);
+
+        if (!string.IsNullOrWhiteSpace(videoId))
+        {
+            _archive.Add(videoId);
+        }
+        else
+        {
+            _logger.LogWarning("Could not extract video ID from '{Path}'. Video will not be added to archive.", filePath);
+        }
+
+        DeleteWithSidecars(filePath);
+        _libraryManager.QueueLibraryScan();
+    }
+
+    private string? TryExtractVideoId(string filePath)
+    {
+        var dir = Path.GetDirectoryName(filePath);
         var stem = Path.GetFileNameWithoutExtension(filePath);
+
+        if (dir is not null)
+        {
+            // Try .delete-watched marker file (contains video ID)
+            var markerPath = Path.Combine(dir, stem + ".delete-watched");
+            if (File.Exists(markerPath))
+            {
+                try
+                {
+                    var content = File.ReadAllText(markerPath).Trim();
+                    if (IsPlausibleVideoId(content))
+                        return content;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to read video ID from marker '{Path}'.", markerPath);
+                }
+            }
+
+            // Try .info.json sidecar (playlists)
+            var infoJsonPath = Path.Combine(dir, stem + ".info.json");
+            if (File.Exists(infoJsonPath))
+            {
+                try
+                {
+                    using var stream = File.OpenRead(infoJsonPath);
+                    using var doc = JsonDocument.Parse(stream);
+                    if (doc.RootElement.TryGetProperty("id", out var idProp) &&
+                        idProp.ValueKind == JsonValueKind.String)
+                    {
+                        var id = idProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(id))
+                            return id;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to read video ID from '{Path}'.", infoJsonPath);
+                }
+            }
+        }
+
+        // Fall back to filename pattern: "Title - <videoId>.ext"
         var dashIdx = stem.LastIndexOf(" - ", StringComparison.Ordinal);
         if (dashIdx >= 0)
         {
             var extractedId = stem[(dashIdx + 3)..];
-            if (!string.IsNullOrWhiteSpace(extractedId))
-                _archive.Add(extractedId);
+            if (IsPlausibleVideoId(extractedId))
+                return extractedId;
         }
 
-        if (!string.IsNullOrWhiteSpace(videoId))
-            _archive.Add(videoId);
+        return null;
+    }
 
-        DeleteWithSidecars(filePath);
-        _libraryManager.QueueLibraryScan();
+    private static bool IsPlausibleVideoId(string id)
+    {
+        return id.Length >= 6 && id.Length <= 16 &&
+               id.All(c => char.IsLetterOrDigit(c) || c is '-' or '_');
     }
 
     private static bool ShouldDeleteBasedOnPath(string filePath, Configuration.PluginConfiguration config)

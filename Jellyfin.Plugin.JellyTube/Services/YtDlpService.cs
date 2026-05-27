@@ -197,17 +197,31 @@ public class YtDlpService
             using var proc = new Process { StartInfo = psi };
             proc.Start();
 
-            var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
-            var stderrTask = proc.StandardError.ReadToEndAsync(ct);
-            await Task.WhenAll(stdoutTask, stderrTask);
-            await proc.WaitForExitAsync(ct);
+            // 6-hour timeout to prevent indefinitely hanging downloads
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromHours(6));
+            var linkedToken = timeoutCts.Token;
 
-            var stderr = stderrTask.Result.Trim();
-            if (!string.IsNullOrEmpty(stderr))
-                _logger.LogInformation("yt-dlp stderr: {Stderr}", stderr);
+            try
+            {
+                var stdoutTask = proc.StandardOutput.ReadToEndAsync(linkedToken);
+                var stderrTask = proc.StandardError.ReadToEndAsync(linkedToken);
+                await Task.WhenAll(stdoutTask, stderrTask);
+                await proc.WaitForExitAsync(linkedToken);
 
-            _logger.LogInformation("yt-dlp playlist download finished, exit code {Code}", proc.ExitCode);
-            return proc.ExitCode == 0;
+                var stderr = stderrTask.Result.Trim();
+                if (!string.IsNullOrEmpty(stderr))
+                    _logger.LogInformation("yt-dlp stderr: {Stderr}", stderr);
+
+                _logger.LogInformation("yt-dlp playlist download finished, exit code {Code}", proc.ExitCode);
+                return proc.ExitCode == 0;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("yt-dlp playlist download timed out after 6 hours: {Url}", url);
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                return false;
+            }
         }
         catch (Exception ex)
         {
