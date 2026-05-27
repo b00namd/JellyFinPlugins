@@ -151,6 +151,8 @@ public class DownloadWorkerService : BackgroundService
             _logger.LogWarning("Job {Id}: playlist download reported errors (some videos may be unavailable). Writing metadata for successful downloads.", job.Id);
         }
 
+        CleanupIntermediateFiles(outputDir);
+
         // Step 3 – write NFO and thumbnails
         job.Status = DownloadJobStatus.WritingMetadata;
 
@@ -340,6 +342,36 @@ public class DownloadWorkerService : BackgroundService
         {
             _logger.LogWarning(ex, "Error while killing orphaned yt-dlp processes on startup.");
         }
+    }
+
+    private void CleanupIntermediateFiles(string dir)
+    {
+        if (!Directory.Exists(dir))
+            return;
+
+        // yt-dlp names intermediate streams as: Title - ID.f<formatId>.<ext>
+        // e.g. "Video - abc123.f251.webm" (audio) or "Video - abc123.f137.mp4" (video-only)
+        int deleted = 0;
+        foreach (var file in Directory.EnumerateFiles(dir, "*.*", SearchOption.AllDirectories).ToList())
+        {
+            var name = Path.GetFileName(file);
+            var parts = name.Split('.');
+            if (parts.Length >= 3 && parts[^2].StartsWith('f') && int.TryParse(parts[^2][1..], out _))
+            {
+                try
+                {
+                    File.Delete(file);
+                    deleted++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not delete intermediate file '{Path}'.", file);
+                }
+            }
+        }
+
+        if (deleted > 0)
+            _logger.LogInformation("Cleaned up {Count} intermediate file(s) in '{Dir}'.", deleted, dir);
     }
 
     private string? RenameToCleanTitle(string videoFile, string videoId)
