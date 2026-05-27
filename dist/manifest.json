@@ -3,10 +3,10 @@
         "owner":  "local",
         "versions":  [
                          {
-                             "changelog":  "Cookies-Unterstützung, gesehene Videos automatisch löschen (manuell + geplant), Startup-Scan für bereits gesehene Videos, 2K/4K Qualitätsoptionen",
+                             "changelog":  "Initiale Version",
                              "version":  "1.0.0.0",
-                             "checksum":  "b20d6eb5444158dcaf35b1c9bb7d2f6e",
-                             "timestamp":  "2026-04-19T00:00:00Z",
+                             "checksum":  "fa4ade4481db420cffdf2082e712780f",
+                             "timestamp":  "2026-05-27T09:12:18Z",
                              "targetAbi":  "10.9.0.0",
                              "sourceUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.0.0.zip"
                          }
@@ -17,5 +17,24 @@
         "name":  "JellyTube",
         "description":  "YouTube-Videos und Playlists direkt in die Jellyfin-Mediathek herunterladen.",
         "imageUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTube/thumb.png"
+    },
+    {
+        "owner":  "local",
+        "versions":  [
+                         {
+                             "changelog":  "Initiale Version",
+                             "version":  "1.0.0.0",
+                             "checksum":  "ca31f2d957d5e6881c8ac21e28bfa41c",
+                             "timestamp":  "2026-05-27T09:12:18Z",
+                             "targetAbi":  "10.9.0.0",
+                             "sourceUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.0.0.0.zip"
+                         }
+                     ],
+        "overview":  "Nutzt Invidious als primaere Quelle fuer YouTube-Streams. yt-dlp dient als Fallback.",
+        "category":  "General",
+        "guid":  "c3d4e5f6-a7b8-9012-cdef-012345678901",
+        "name":  "JellyTubbing",
+        "description":  "YouTube-Videos direkt in Jellyfin streamen - via Invidious mit yt-dlp als Fallback.",
+        "imageUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTubbing/thumb.png"
     }
 ]
