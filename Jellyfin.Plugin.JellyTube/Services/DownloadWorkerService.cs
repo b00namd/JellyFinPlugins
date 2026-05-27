@@ -162,47 +162,43 @@ public class DownloadWorkerService : BackgroundService
             ? (job.DeleteWatched || config.DeleteWatchedScheduledVideos)
             : config.DeleteWatchedManualVideos;
 
-        if (config.WriteNfoFiles || config.DownloadThumbnails || shouldWriteDeleteMarker)
+        if (job.IsPlaylist)
         {
-            if (job.IsPlaylist)
+            await WritePlaylistMetadataAsync(outputDir, shouldWriteDeleteMarker, ct);
+        }
+        else
+        {
+            var videoFile = LocateDownloadedFile(outputDir, meta.VideoId);
+
+            if (videoFile is not null)
             {
-                // For playlists yt-dlp writes a .info.json per video — parse each to build full NFO/thumbnails
-                await WritePlaylistMetadataAsync(outputDir, shouldWriteDeleteMarker, ct);
+                if (shouldWriteDeleteMarker)
+                {
+                    var markerPath = Path.ChangeExtension(videoFile, ".delete-watched");
+                    try { await File.WriteAllTextAsync(markerPath, meta.VideoId, ct); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Could not write delete-watched marker for '{Path}'.", videoFile); }
+                }
+
+                if (config.WriteNfoFiles)
+                {
+                    var nfoPath = LibraryOrganizationService.GetNfoPath(videoFile);
+                    await _nfo.WriteNfoAsync(meta, nfoPath);
+                }
+
+                if (config.DownloadThumbnails && !string.IsNullOrEmpty(meta.ThumbnailUrl))
+                {
+                    var thumbPath = LibraryOrganizationService.GetThumbnailPath(videoFile);
+                    await _thumbs.DownloadThumbnailAsync(meta.ThumbnailUrl, thumbPath, ct);
+                    await _thumbs.EnsureChannelPosterAsync(outputDir, meta.ThumbnailUrl, ct);
+                }
+
+                videoFile = RenameToCleanTitle(videoFile, meta.VideoId) ?? videoFile;
+                job.DownloadedFilePath = videoFile;
             }
             else
             {
-                var videoFile = LocateDownloadedFile(outputDir, meta.VideoId);
-
-                if (videoFile is not null)
-                {
-                    if (shouldWriteDeleteMarker)
-                    {
-                        var markerPath = Path.ChangeExtension(videoFile, ".delete-watched");
-                        try { await File.WriteAllTextAsync(markerPath, meta.VideoId, ct); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Could not write delete-watched marker for '{Path}'.", videoFile); }
-                    }
-
-                    if (config.WriteNfoFiles)
-                    {
-                        var nfoPath = LibraryOrganizationService.GetNfoPath(videoFile);
-                        await _nfo.WriteNfoAsync(meta, nfoPath);
-                    }
-
-                    if (config.DownloadThumbnails && !string.IsNullOrEmpty(meta.ThumbnailUrl))
-                    {
-                        var thumbPath = LibraryOrganizationService.GetThumbnailPath(videoFile);
-                        await _thumbs.DownloadThumbnailAsync(meta.ThumbnailUrl, thumbPath, ct);
-                        await _thumbs.EnsureChannelPosterAsync(outputDir, meta.ThumbnailUrl, ct);
-                    }
-
-                    videoFile = RenameToCleanTitle(videoFile, meta.VideoId) ?? videoFile;
-                    job.DownloadedFilePath = videoFile;
-                }
-                else
-                {
-                    _logger.LogWarning("Job {Id}: downloaded file not found in {Dir} for video {VideoId}.",
-                        job.Id, outputDir, meta.VideoId);
-                }
+                _logger.LogWarning("Job {Id}: downloaded file not found in {Dir} for video {VideoId}.",
+                    job.Id, outputDir, meta.VideoId);
             }
         }
 
@@ -222,14 +218,16 @@ public class DownloadWorkerService : BackgroundService
         var config = Plugin.Instance!.Configuration;
         string? lastThumbnailUrl = null;
 
-        var infoJsonFiles = Directory.EnumerateFiles(outputDir, "*.info.json").ToList();
+        var searchOption = config.OrganiseByChannel ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+        var infoJsonFiles = Directory.EnumerateFiles(outputDir, "*.info.json", searchOption).ToList();
         foreach (var jsonPath in infoJsonFiles)
         {
             var videoMeta = await ParseInfoJsonAsync(jsonPath, ct);
             if (videoMeta is null || string.IsNullOrEmpty(videoMeta.VideoId))
                 continue;
 
-            var videoFile = LocateDownloadedFile(outputDir, videoMeta.VideoId);
+            var videoDir = Path.GetDirectoryName(jsonPath) ?? outputDir;
+            var videoFile = LocateDownloadedFile(videoDir, videoMeta.VideoId);
             if (videoFile is null)
                 continue;
 
