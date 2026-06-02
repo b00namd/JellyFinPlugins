@@ -131,6 +131,7 @@
             }
             document.getElementById('PreferredContainer').value         = config.PreferredContainer || 'mp4';
             document.getElementById('MaxConcurrentDownloads').value     = config.MaxConcurrentDownloads || 2;
+            document.getElementById('DownloadRetryCount').value         = (config.DownloadRetryCount != null) ? config.DownloadRetryCount : 2;
             document.getElementById('OrganiseByChannel').checked        = !!config.OrganiseByChannel;
             document.getElementById('DownloadSubtitles').checked        = !!config.DownloadSubtitles;
             document.getElementById('SubtitleLanguages').value          = config.SubtitleLanguages || '';
@@ -158,6 +159,8 @@
                 : preset;
             config.PreferredContainer         = document.getElementById('PreferredContainer').value;
             config.MaxConcurrentDownloads     = parseInt(document.getElementById('MaxConcurrentDownloads').value) || 2;
+            var retryVal = parseInt(document.getElementById('DownloadRetryCount').value);
+            config.DownloadRetryCount         = isNaN(retryVal) ? 2 : Math.max(0, retryVal);
             config.OrganiseByChannel          = document.getElementById('OrganiseByChannel').checked;
             config.DownloadSubtitles          = document.getElementById('DownloadSubtitles').checked;
             config.SubtitleLanguages          = document.getElementById('SubtitleLanguages').value;
@@ -288,11 +291,13 @@
 
         var isPlaylist  = document.getElementById('yt-is-playlist').checked;
         var dlPath      = document.getElementById('yt-dl-path').value.trim() || null;
+        var forceCb     = document.getElementById('yt-force-download');
+        var force       = forceCb && forceCb.checked;
 
         fetch(API_BASE + '/download', {
             method: 'POST',
             headers: apiHeaders(),
-            body: JSON.stringify({ url: url, isPlaylist: isPlaylist, downloadPath: dlPath })
+            body: JSON.stringify({ url: url, isPlaylist: isPlaylist, downloadPath: dlPath, force: force })
         })
         .then(function (r) {
             if (r.status === 201) {
@@ -326,7 +331,7 @@
         jobs.forEach(function (j) {
             if (j.Status === 'Queued') q++;
             else if (['FetchingMetadata','Downloading','WritingMetadata'].indexOf(j.Status) >= 0) a++;
-            else if (j.Status === 'Completed') c++;
+            else if (j.Status === 'Completed' || j.Status === 'CompletedWithErrors') c++;
             else f++;
         });
         document.getElementById('yt-queue-stats').textContent =
@@ -350,7 +355,7 @@
             if (['FetchingMetadata','Downloading','WritingMetadata'].indexOf(job.Status) >= 0) {
                 progressHtml = '<div class="yt-progress-bar-wrap"><div class="yt-progress-bar-fill" style="width:' +
                     Math.round(job.ProgressPercent) + '%"></div></div> ' + Math.round(job.ProgressPercent) + '%';
-            } else if (job.Status === 'Completed') {
+            } else if (job.Status === 'Completed' || job.Status === 'CompletedWithErrors') {
                 progressHtml = '100%';
             }
 

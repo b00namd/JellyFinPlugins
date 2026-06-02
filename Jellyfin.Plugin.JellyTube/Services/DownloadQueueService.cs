@@ -24,7 +24,7 @@ public class DownloadQueueService
     /// <summary>
     /// Enqueues a new download job and returns it.
     /// </summary>
-    public DownloadJob Enqueue(string url, bool isPlaylist = false, bool isScheduled = false, string? overrideDownloadPath = null, int maxAgeDays = 0, bool deleteWatched = false)
+    public DownloadJob Enqueue(string url, bool isPlaylist = false, bool isScheduled = false, string? overrideDownloadPath = null, int maxAgeDays = 0, bool deleteWatched = false, bool force = false)
     {
         var job = new DownloadJob
         {
@@ -33,7 +33,8 @@ public class DownloadQueueService
             IsScheduled = isScheduled,
             OverrideDownloadPath = string.IsNullOrWhiteSpace(overrideDownloadPath) ? null : overrideDownloadPath,
             MaxAgeDays = maxAgeDays,
-            DeleteWatched = deleteWatched
+            DeleteWatched = deleteWatched,
+            Force = force
         };
         _jobs[job.Id] = job;
         _workChannel.Writer.TryWrite(job.Id);

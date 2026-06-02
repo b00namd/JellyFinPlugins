@@ -20,6 +20,9 @@ public enum DownloadJobStatus
     /// <summary>Download and metadata writing completed successfully.</summary>
     Completed,
 
+    /// <summary>Playlist download finished but some videos failed.</summary>
+    CompletedWithErrors,
+
     /// <summary>Download failed due to an error.</summary>
     Failed,
 

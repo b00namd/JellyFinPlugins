@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTube.Models;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -139,21 +141,49 @@ public class WatchedVideoCleanupService : IHostedService
 
         _logger.LogInformation("Starting watched-video startup scan across {Count} path(s).", pathsToScan.Count);
         int deleted = 0;
+        int scanned = 0;
 
         foreach (var basePath in pathsToScan)
         {
+            if (ct.IsCancellationRequested)
+                return;
             if (!Directory.Exists(basePath))
                 continue;
 
-            foreach (var filePath in Directory.EnumerateFiles(basePath, "*.*", SearchOption.AllDirectories))
+            IEnumerable<string> files;
+            try
+            {
+                files = Directory.EnumerateFiles(basePath, "*.*", SearchOption.AllDirectories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not enumerate files under '{Path}'.", basePath);
+                continue;
+            }
+
+            foreach (var filePath in files)
             {
                 if (ct.IsCancellationRequested)
                     return;
 
+                // Yield every 200 files to avoid monopolising the thread on large libraries
+                if (++scanned % 200 == 0)
+                    await Task.Yield();
+
                 if (!IsVideoFile(filePath))
                     continue;
 
-                var item = _libraryManager.FindByPath(filePath, false);
+                BaseItem? item;
+                try
+                {
+                    item = _libraryManager.FindByPath(filePath, false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "FindByPath failed for '{Path}'.", filePath);
+                    continue;
+                }
+
                 if (item is null)
                     continue;
 

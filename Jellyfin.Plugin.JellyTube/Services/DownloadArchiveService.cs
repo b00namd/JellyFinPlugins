@@ -56,6 +56,37 @@ public class DownloadArchiveService
     }
 
     /// <summary>
+    /// Removes a single YouTube video ID from the archive so it can be re-downloaded.
+    /// Returns true if it was present.
+    /// </summary>
+    public bool Remove(string videoId)
+    {
+        if (string.IsNullOrWhiteSpace(videoId))
+            return false;
+
+        lock (_lock)
+        {
+            if (!_videoIds.Remove(videoId))
+                return false;
+
+            if (File.Exists(_archivePath))
+            {
+                var remaining = new List<string>();
+                foreach (var line in File.ReadAllLines(_archivePath))
+                {
+                    var parts = line.Trim().Split(' ');
+                    if (parts.Length < 2 || !string.Equals(parts[1], videoId, StringComparison.OrdinalIgnoreCase))
+                        remaining.Add(line);
+                }
+                File.WriteAllLines(_archivePath, remaining);
+            }
+
+            _logger.LogInformation("Removed {VideoId} from download archive.", videoId);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Clears the archive file and the in-memory set so all videos can be re-downloaded.
     /// </summary>
     public void Clear()

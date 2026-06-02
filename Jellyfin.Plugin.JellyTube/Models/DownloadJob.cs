@@ -54,4 +54,7 @@ public class DownloadJob
 
     /// <summary>Gets or sets a value indicating whether watched files should be deleted for this job.</summary>
     public bool DeleteWatched { get; set; } = false;
+
+    /// <summary>Gets or sets a value indicating whether to bypass the download archive (force re-download).</summary>
+    public bool Force { get; set; } = false;
 }

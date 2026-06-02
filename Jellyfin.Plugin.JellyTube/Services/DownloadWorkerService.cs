@@ -131,18 +131,40 @@ public class DownloadWorkerService : BackgroundService
             job.CurrentFile = dp.Data;
         });
 
-        var archivePath = job.IsScheduled ? _archive.ArchivePath : null;
+        // Force=true bypasses the archive so an already-downloaded video can be fetched again.
+        var archivePath = (job.IsScheduled && !job.Force) ? _archive.ArchivePath : null;
+        if (job.Force && job.Metadata?.VideoId is { Length: > 0 } forceId)
+        {
+            _archive.Remove(forceId);
+        }
+        var maxAttempts = Math.Max(1, 1 + Plugin.Instance!.Configuration.DownloadRetryCount);
+        bool success = false;
 
-        bool success = job.IsPlaylist
-            ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath, job.MaxAgeDays, job.IsScheduled)
-            : await _ytDlp.DownloadVideoAsync(job.Url, outputDir, downloadProgress, ct, archivePath);
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            if (attempt > 1)
+            {
+                var backoff = TimeSpan.FromSeconds(Math.Min(30, 5 * (attempt - 1)));
+                _logger.LogInformation("Job {Id}: retry attempt {Attempt}/{Max} after {Delay}s.",
+                    job.Id, attempt, maxAttempts, backoff.TotalSeconds);
+                try { await Task.Delay(backoff, ct); }
+                catch (OperationCanceledException) { break; }
+            }
+
+            success = job.IsPlaylist
+                ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath, job.MaxAgeDays, job.IsScheduled)
+                : await _ytDlp.DownloadVideoAsync(job.Url, outputDir, downloadProgress, ct, archivePath);
+
+            if (success || ct.IsCancellationRequested)
+                break;
+        }
 
         if (!success && !job.IsPlaylist)
         {
             job.Status = DownloadJobStatus.Failed;
-            job.ErrorMessage = "yt-dlp hat einen Fehler gemeldet.";
+            job.ErrorMessage = $"yt-dlp hat einen Fehler gemeldet (nach {maxAttempts} Versuch(en)).";
             job.CompletedAt = DateTime.UtcNow;
-            _logger.LogWarning("Job {Id} failed during download.", job.Id);
+            _logger.LogWarning("Job {Id} failed during download after {Attempts} attempt(s).", job.Id, maxAttempts);
             return;
         }
 
@@ -168,44 +190,50 @@ public class DownloadWorkerService : BackgroundService
         }
         else
         {
-            var videoFile = LocateDownloadedFile(outputDir, meta.VideoId);
+            // meta is guaranteed non-null here: the non-playlist branch above fetched it
+            // and returned early on null. Capture into a non-nullable local.
+            var videoMeta = meta!;
+            var videoFile = LocateDownloadedFile(outputDir, videoMeta.VideoId);
 
             if (videoFile is not null)
             {
                 if (shouldWriteDeleteMarker)
                 {
                     var markerPath = Path.ChangeExtension(videoFile, ".delete-watched");
-                    try { await File.WriteAllTextAsync(markerPath, meta.VideoId, ct); }
+                    try { await File.WriteAllTextAsync(markerPath, videoMeta.VideoId, ct); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Could not write delete-watched marker for '{Path}'.", videoFile); }
                 }
 
                 if (config.WriteNfoFiles)
                 {
                     var nfoPath = LibraryOrganizationService.GetNfoPath(videoFile);
-                    await _nfo.WriteNfoAsync(meta, nfoPath);
+                    await _nfo.WriteNfoAsync(videoMeta, nfoPath);
                 }
 
-                if (config.DownloadThumbnails && !string.IsNullOrEmpty(meta.ThumbnailUrl))
+                if (config.DownloadThumbnails && !string.IsNullOrEmpty(videoMeta.ThumbnailUrl))
                 {
                     var thumbPath = LibraryOrganizationService.GetThumbnailPath(videoFile);
-                    await _thumbs.DownloadThumbnailAsync(meta.ThumbnailUrl, thumbPath, ct);
-                    await _thumbs.EnsureChannelPosterAsync(outputDir, meta.ThumbnailUrl, ct);
+                    await _thumbs.DownloadThumbnailAsync(videoMeta.ThumbnailUrl, thumbPath, ct);
+                    await _thumbs.EnsureChannelPosterAsync(outputDir, videoMeta.ThumbnailUrl, ct);
                 }
 
-                videoFile = RenameToCleanTitle(videoFile, meta.VideoId) ?? videoFile;
+                videoFile = RenameToCleanTitle(videoFile, videoMeta.VideoId) ?? videoFile;
                 job.DownloadedFilePath = videoFile;
             }
             else
             {
                 _logger.LogWarning("Job {Id}: downloaded file not found in {Dir} for video {VideoId}.",
-                    job.Id, outputDir, meta.VideoId);
+                    job.Id, outputDir, videoMeta.VideoId);
             }
         }
 
-        job.Status = DownloadJobStatus.Completed;
+        job.Status = success ? DownloadJobStatus.Completed : DownloadJobStatus.CompletedWithErrors;
         job.ProgressPercent = 100;
         job.CompletedAt = DateTime.UtcNow;
-        _logger.LogInformation("Job {Id} completed successfully.", job.Id);
+        if (success)
+            _logger.LogInformation("Job {Id} completed successfully.", job.Id);
+        else
+            _logger.LogInformation("Job {Id} completed with errors (some videos failed).", job.Id);
 
         // Always trigger a scan: file rename invalidates Jellyfin's cached media info,
         // so without a scan the UI shows stale resolution/codec/etc.

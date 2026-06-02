@@ -222,6 +222,13 @@
                                    is="emby-input" min="1" max="10" style="max-width:80px;" />
                         </div>
 
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="DownloadRetryCount">Wiederholungsversuche bei Fehlern</label>
+                            <input id="DownloadRetryCount" name="DownloadRetryCount" type="number"
+                                   is="emby-input" min="0" max="10" style="max-width:80px;" />
+                            <div class="fieldDescription">Anzahl Wiederholungen bei fehlgeschlagenen Downloads (0 = keine Wiederholung). Verzögerung steigt pro Versuch (5s, 10s, ...).</div>
+                        </div>
+
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="OrganiseByChannel" name="OrganiseByChannel" type="checkbox" is="emby-checkbox" />
@@ -353,6 +360,14 @@
                             <input id="yt-is-playlist" type="checkbox" is="emby-checkbox" />
                             <span>Dies ist eine Playlist / ein Kanal</span>
                         </label>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="yt-force-download" type="checkbox" is="emby-checkbox" />
+                            <span>Erzwungenes erneutes Herunterladen</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Ignoriert das Download-Archiv. Nützlich wenn ein Video erneut heruntergeladen werden soll (z.B. nach Beschädigung oder höherer Qualität).</div>
                     </div>
 
                     <div class="inputContainer">

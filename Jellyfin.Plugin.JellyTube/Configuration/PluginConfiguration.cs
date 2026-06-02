@@ -105,4 +105,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Leave empty to download without cookies.
     /// </summary>
     public string CookiesFilePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets how many times a failed download should be retried before giving up.
+    /// Set to 0 to disable retries. Default 2 (3 total attempts).
+    /// </summary>
+    public int DownloadRetryCount { get; set; } = 2;
 }

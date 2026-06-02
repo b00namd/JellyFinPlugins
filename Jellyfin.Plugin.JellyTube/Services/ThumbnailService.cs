@@ -79,9 +79,12 @@ public class ThumbnailService
             yield return $"https://i.ytimg.com/vi/{ytIdMatch.Groups[1].Value}/hqdefault.jpg";
     }
 
+    private static readonly TimeSpan PosterRefreshAge = TimeSpan.FromDays(7);
+
     /// <summary>
-    /// Downloads <paramref name="thumbnailUrl"/> as <c>poster.jpg</c> inside <paramref name="channelDir"/>
-    /// only if no poster already exists.
+    /// Downloads <paramref name="thumbnailUrl"/> as <c>poster.jpg</c> inside <paramref name="channelDir"/>.
+    /// Skips the download if a poster already exists and is younger than <see cref="PosterRefreshAge"/>,
+    /// so channel logo changes are eventually picked up.
     /// </summary>
     public async Task EnsureChannelPosterAsync(string channelDir, string thumbnailUrl, CancellationToken ct)
     {
@@ -91,9 +94,13 @@ public class ThumbnailService
         }
 
         var posterPath = Path.Combine(channelDir, "poster.jpg");
-        if (!File.Exists(posterPath))
+        if (File.Exists(posterPath))
         {
-            await DownloadThumbnailAsync(thumbnailUrl, posterPath, ct);
+            var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(posterPath);
+            if (age < PosterRefreshAge)
+                return;
         }
+
+        await DownloadThumbnailAsync(thumbnailUrl, posterPath, ct);
     }
 }
