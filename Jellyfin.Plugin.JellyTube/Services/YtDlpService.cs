@@ -214,7 +214,11 @@ public class YtDlpService
                     _logger.LogInformation("yt-dlp stderr: {Stderr}", stderr);
 
                 _logger.LogInformation("yt-dlp playlist download finished, exit code {Code}", proc.ExitCode);
-                return proc.ExitCode == 0;
+
+                // Exit code 101 = --break-on-existing or --break-on-reject hit.
+                // This is expected normal behaviour when an archive is in use or a date filter
+                // matches, not an error. Treat it as success.
+                return proc.ExitCode == 0 || proc.ExitCode == 101;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {

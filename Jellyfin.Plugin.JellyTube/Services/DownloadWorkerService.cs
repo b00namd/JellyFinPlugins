@@ -207,10 +207,9 @@ public class DownloadWorkerService : BackgroundService
         job.CompletedAt = DateTime.UtcNow;
         _logger.LogInformation("Job {Id} completed successfully.", job.Id);
 
-        if (config.TriggerLibraryScanAfterDownload)
-        {
-            _libraryManager.QueueLibraryScan();
-        }
+        // Always trigger a scan: file rename invalidates Jellyfin's cached media info,
+        // so without a scan the UI shows stale resolution/codec/etc.
+        _libraryManager.QueueLibraryScan();
     }
 
     private async Task WritePlaylistMetadataAsync(string outputDir, bool writeDeleteMarker, CancellationToken ct)
@@ -347,24 +346,44 @@ public class DownloadWorkerService : BackgroundService
         if (!Directory.Exists(dir))
             return;
 
-        // yt-dlp names intermediate streams as: Title - ID.f<formatId>.<ext>
-        // e.g. "Video - abc123.f251.webm" (audio) or "Video - abc123.f137.mp4" (video-only)
+        // yt-dlp leaves these behind:
+        //   *.f<formatId>.<ext>      stream-specific intermediates (audio/video only)
+        //   *.f<formatId>.<ext>.part interrupted-download partial files
+        //   *.part                   yt-dlp partial downloads
+        //   *.temp.<ext>             intermediate during merge/postprocessing
         int deleted = 0;
         foreach (var file in Directory.EnumerateFiles(dir, "*.*", SearchOption.AllDirectories).ToList())
         {
             var name = Path.GetFileName(file);
-            var parts = name.Split('.');
-            if (parts.Length >= 3 && parts[^2].StartsWith('f') && int.TryParse(parts[^2][1..], out _))
+
+            bool shouldDelete = false;
+
+            if (name.EndsWith(".part", StringComparison.OrdinalIgnoreCase))
             {
-                try
-                {
-                    File.Delete(file);
-                    deleted++;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Could not delete intermediate file '{Path}'.", file);
-                }
+                shouldDelete = true;
+            }
+            else if (name.Contains(".temp.", StringComparison.OrdinalIgnoreCase))
+            {
+                shouldDelete = true;
+            }
+            else
+            {
+                var parts = name.Split('.');
+                if (parts.Length >= 3 && parts[^2].StartsWith('f') && int.TryParse(parts[^2][1..], out _))
+                    shouldDelete = true;
+            }
+
+            if (!shouldDelete)
+                continue;
+
+            try
+            {
+                File.Delete(file);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not delete intermediate file '{Path}'.", file);
             }
         }
 
@@ -427,6 +446,8 @@ public class DownloadWorkerService : BackgroundService
         }
 
         return Directory.EnumerateFiles(dir, $"*{videoId}*")
+            .Where(f => !f.Contains(".temp.", StringComparison.OrdinalIgnoreCase) &&
+                        !f.EndsWith(".part", StringComparison.OrdinalIgnoreCase))
             .FirstOrDefault(f =>
                 f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
                 f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||

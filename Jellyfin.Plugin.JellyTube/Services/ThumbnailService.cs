@@ -35,18 +35,48 @@ public class ThumbnailService
             return;
         }
 
-        try
+        var client = _httpClientFactory.CreateClient("thumbnail");
+
+        foreach (var candidate in BuildThumbnailCandidates(url))
         {
-            var client = _httpClientFactory.CreateClient("thumbnail");
-            var bytes = await client.GetByteArrayAsync(url, ct);
-            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-            await File.WriteAllBytesAsync(destPath, bytes, ct);
-            _logger.LogInformation("Thumbnail saved to {Path}", destPath);
+            try
+            {
+                var bytes = await client.GetByteArrayAsync(candidate, ct);
+                Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+                await File.WriteAllBytesAsync(destPath, bytes, ct);
+                _logger.LogInformation("Thumbnail saved to {Path}", destPath);
+                return;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                continue;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to download thumbnail from {Url}", candidate);
+                return;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to download thumbnail from {Url}", url);
-        }
+
+        _logger.LogWarning("No thumbnail variant could be downloaded for {Url}", url);
+    }
+
+    private static System.Collections.Generic.IEnumerable<string> BuildThumbnailCandidates(string url)
+    {
+        yield return url;
+
+        // YouTube localized thumbnails like ".../maxresdefault_en-US.jpg" often 404.
+        // Fall back to the non-localized variant.
+        var localizedMatch = System.Text.RegularExpressions.Regex.Match(
+            url, @"^(.*?)(_[a-z]{2}-[A-Z]{2})(\.\w+)$");
+        if (localizedMatch.Success)
+            yield return localizedMatch.Groups[1].Value + localizedMatch.Groups[3].Value;
+
+        // Final fallback: hqdefault is always available on YouTube
+        var ytIdMatch = System.Text.RegularExpressions.Regex.Match(
+            url, @"i\.ytimg\.com/vi(?:_lc)?/([a-zA-Z0-9_-]+)/");
+        if (ytIdMatch.Success)
+            yield return $"https://i.ytimg.com/vi/{ytIdMatch.Groups[1].Value}/hqdefault.jpg";
     }
 
     /// <summary>
