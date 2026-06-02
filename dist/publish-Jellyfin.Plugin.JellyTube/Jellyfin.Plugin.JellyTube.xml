@@ -75,7 +75,7 @@
         <member name="T:Jellyfin.Plugin.JellyTube.Api.EnqueueRequest">
             <summary>Request body for enqueuing a download.</summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTube.Api.EnqueueRequest.#ctor(System.String,System.Boolean,System.String)">
+        <member name="M:Jellyfin.Plugin.JellyTube.Api.EnqueueRequest.#ctor(System.String,System.Boolean,System.String,System.Boolean)">
             <summary>Request body for enqueuing a download.</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Api.FetchMetadataRequest">
@@ -198,6 +198,12 @@
             Leave empty to download without cookies.
             </summary>
         </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.DownloadRetryCount">
+            <summary>
+            Gets or sets how many times a failed download should be retried before giving up.
+            Set to 0 to disable retries. Default 2 (3 total attempts).
+            </summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Helpers.DateParser">
             <summary>
             Utility for parsing yt-dlp date strings.
@@ -273,6 +279,9 @@
         <member name="P:Jellyfin.Plugin.JellyTube.Models.DownloadJob.DeleteWatched">
             <summary>Gets or sets a value indicating whether watched files should be deleted for this job.</summary>
         </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Models.DownloadJob.Force">
+            <summary>Gets or sets a value indicating whether to bypass the download archive (force re-download).</summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Models.DownloadJobStatus">
             <summary>
             Represents the current state of a download job.
@@ -292,6 +301,9 @@
         </member>
         <member name="F:Jellyfin.Plugin.JellyTube.Models.DownloadJobStatus.Completed">
             <summary>Download and metadata writing completed successfully.</summary>
+        </member>
+        <member name="F:Jellyfin.Plugin.JellyTube.Models.DownloadJobStatus.CompletedWithErrors">
+            <summary>Playlist download finished but some videos failed.</summary>
         </member>
         <member name="F:Jellyfin.Plugin.JellyTube.Models.DownloadJobStatus.Failed">
             <summary>Download failed due to an error.</summary>
@@ -484,6 +496,12 @@
             Adds a YouTube video ID to the archive so yt-dlp will skip it in future downloads.
             </summary>
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService.Remove(System.String)">
+            <summary>
+            Removes a single YouTube video ID from the archive so it can be re-downloaded.
+            Returns true if it was present.
+            </summary>
+        </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService.Clear">
             <summary>
             Clears the archive file and the in-memory set so all videos can be re-downloaded.
@@ -499,7 +517,7 @@
             Gets the channel reader used by worker tasks to receive job IDs.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadQueueService.Enqueue(System.String,System.Boolean,System.Boolean,System.String,System.Int32,System.Boolean)">
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadQueueService.Enqueue(System.String,System.Boolean,System.Boolean,System.String,System.Int32,System.Boolean,System.Boolean)">
             <summary>
             Enqueues a new download job and returns it.
             </summary>
@@ -612,8 +630,9 @@
         </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.ThumbnailService.EnsureChannelPosterAsync(System.String,System.String,System.Threading.CancellationToken)">
             <summary>
-            Downloads <paramref name="thumbnailUrl"/> as <c>poster.jpg</c> inside <paramref name="channelDir"/>
-            only if no poster already exists.
+            Downloads <paramref name="thumbnailUrl"/> as <c>poster.jpg</c> inside <paramref name="channelDir"/>.
+            Skips the download if a poster already exists and is younger than <see cref="F:Jellyfin.Plugin.JellyTube.Services.ThumbnailService.PosterRefreshAge"/>,
+            so channel logo changes are eventually picked up.
             </summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.WatchedVideoCleanupService">
