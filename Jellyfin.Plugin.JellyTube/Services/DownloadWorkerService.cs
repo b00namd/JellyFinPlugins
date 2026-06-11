@@ -137,7 +137,11 @@ public class DownloadWorkerService : BackgroundService
         {
             _archive.Remove(forceId);
         }
-        var maxAttempts = Math.Max(1, 1 + Plugin.Instance!.Configuration.DownloadRetryCount);
+        // Retries are per-video. For a whole-playlist/channel job a "failure" usually means a few
+        // individual videos were unavailable (members-only, deleted) — --ignore-errors already let
+        // the rest through, so retrying would just re-scan the entire channel for no gain. The next
+        // scheduled run picks up anything still missing anyway.
+        var maxAttempts = job.IsPlaylist ? 1 : Math.Max(1, 1 + Plugin.Instance!.Configuration.DownloadRetryCount);
         bool success = false;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
@@ -379,6 +383,11 @@ public class DownloadWorkerService : BackgroundService
         //   *.f<formatId>.<ext>.part interrupted-download partial files
         //   *.part                   yt-dlp partial downloads
         //   *.temp.<ext>             intermediate during merge/postprocessing
+        // This runs recursively over the whole download tree, so when several channels download
+        // concurrently (MaxConcurrentDownloads > 1) one job's cleanup can see another job's
+        // in-progress fragments. Skip anything modified very recently so we don't delete a file
+        // another yt-dlp process is still writing (which caused "Unable to rename .part" errors).
+        var inProgressCutoff = DateTime.UtcNow.AddMinutes(-15);
         int deleted = 0;
         foreach (var file in Directory.EnumerateFiles(dir, "*.*", SearchOption.AllDirectories).ToList())
         {
@@ -406,6 +415,10 @@ public class DownloadWorkerService : BackgroundService
 
             try
             {
+                // Leave recently-touched fragments alone — a concurrent download likely owns them.
+                if (File.GetLastWriteTimeUtc(file) > inProgressCutoff)
+                    continue;
+
                 File.Delete(file);
                 deleted++;
             }

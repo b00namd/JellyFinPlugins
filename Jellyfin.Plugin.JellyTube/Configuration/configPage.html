@@ -229,6 +229,13 @@
                             <div class="fieldDescription">Anzahl Wiederholungen bei fehlgeschlagenen Downloads (0 = keine Wiederholung). Verzögerung steigt pro Versuch (5s, 10s, ...).</div>
                         </div>
 
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="PlaylistScanLimit">Kanal-Scantiefe (Videos pro Lauf)</label>
+                            <input id="PlaylistScanLimit" name="PlaylistScanLimit" type="number"
+                                   is="emby-input" min="0" max="1000" style="max-width:80px;" />
+                            <div class="fieldDescription">Wie viele der neuesten Videos je Kanal pro geplantem Lauf geprüft werden. Muss das eingestellte Max. Videoalter abdecken (höher = gründlicher, aber langsamer). 0 = gesamten Kanal durchsuchen.</div>
+                        </div>
+
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="OrganiseByChannel" name="OrganiseByChannel" type="checkbox" is="emby-checkbox" />

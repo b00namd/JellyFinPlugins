@@ -132,6 +132,7 @@
             document.getElementById('PreferredContainer').value         = config.PreferredContainer || 'mp4';
             document.getElementById('MaxConcurrentDownloads').value     = config.MaxConcurrentDownloads || 2;
             document.getElementById('DownloadRetryCount').value         = (config.DownloadRetryCount != null) ? config.DownloadRetryCount : 2;
+            document.getElementById('PlaylistScanLimit').value          = (config.PlaylistScanLimit != null) ? config.PlaylistScanLimit : 50;
             document.getElementById('OrganiseByChannel').checked        = !!config.OrganiseByChannel;
             document.getElementById('DownloadSubtitles').checked        = !!config.DownloadSubtitles;
             document.getElementById('SubtitleLanguages').value          = config.SubtitleLanguages || '';
@@ -161,6 +162,8 @@
             config.MaxConcurrentDownloads     = parseInt(document.getElementById('MaxConcurrentDownloads').value) || 2;
             var retryVal = parseInt(document.getElementById('DownloadRetryCount').value);
             config.DownloadRetryCount         = isNaN(retryVal) ? 2 : Math.max(0, retryVal);
+            var scanVal = parseInt(document.getElementById('PlaylistScanLimit').value);
+            config.PlaylistScanLimit          = isNaN(scanVal) ? 50 : Math.max(0, scanVal);
             config.OrganiseByChannel          = document.getElementById('OrganiseByChannel').checked;
             config.DownloadSubtitles          = document.getElementById('DownloadSubtitles').checked;
             config.SubtitleLanguages          = document.getElementById('SubtitleLanguages').value;

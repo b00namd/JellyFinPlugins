@@ -174,19 +174,39 @@ public class YtDlpService
                 psi.ArgumentList.Add($"ffmpeg:-metadata:s:a:0 language={config.DefaultAudioLanguage.Trim()}");
             }
 
+            // Bound how deep we scan the channel listing. Because we deliberately do NOT use the
+            // early-exit "--break-on-*" flags below (see notes), yt-dlp would otherwise extract
+            // metadata for the channel's ENTIRE back-catalogue on every run. --playlist-end caps it
+            // to the most-recent N entries, and --lazy-playlist streams them instead of buffering
+            // the whole list first.
+            psi.ArgumentList.Add("--lazy-playlist");
+            if (config.PlaylistScanLimit > 0)
+            {
+                psi.ArgumentList.Add("--playlist-end");
+                psi.ArgumentList.Add(config.PlaylistScanLimit.ToString());
+            }
+
             var effectiveMaxAge = maxAgeDays > 0 ? maxAgeDays : (isScheduled ? config.PlaylistMaxAgeDays : 0);
             if (effectiveMaxAge > 0)
             {
+                // NOTE: deliberately NO --break-on-reject. A channel listing is NOT strictly
+                // newest-first: pinned videos can be old, and the Shorts/Live tabs restart the
+                // date order (so the list jumps back to "newest" partway through). Breaking on the
+                // first out-of-window video would skip newer matching videos further down the list.
+                // --dateafter filters each entry individually and keeps scanning instead.
                 psi.ArgumentList.Add("--dateafter");
                 psi.ArgumentList.Add(DateTime.UtcNow.AddDays(-effectiveMaxAge).ToString("yyyyMMdd"));
-                psi.ArgumentList.Add("--break-on-reject");
             }
 
             if (!string.IsNullOrEmpty(archivePath))
             {
+                // NOTE: deliberately NO --break-on-existing. If the newest video is already archived
+                // but an older in-window video was never downloaded (it failed, was members-only, or
+                // was published out of order), breaking at the first archived entry would skip that
+                // gap forever. The archive file still prevents already-downloaded videos from being
+                // fetched again — it just no longer halts the scan.
                 psi.ArgumentList.Add("--download-archive");
                 psi.ArgumentList.Add(archivePath);
-                psi.ArgumentList.Add("--break-on-existing");
             }
 
             psi.ArgumentList.Add("--");
@@ -215,9 +235,10 @@ public class YtDlpService
 
                 _logger.LogInformation("yt-dlp playlist download finished, exit code {Code}", proc.ExitCode);
 
-                // Exit code 101 = --break-on-existing or --break-on-reject hit.
-                // This is expected normal behaviour when an archive is in use or a date filter
-                // matches, not an error. Treat it as success.
+                // Exit code 0 = full success. 101 = a "--break-on-*" stop (we no longer pass those
+                // flags, but accept it for safety). Any other non-zero code means at least one video
+                // failed; with --ignore-errors the rest still downloaded, so the caller treats this
+                // as "completed with errors" rather than retrying the whole channel scan.
                 return proc.ExitCode == 0 || proc.ExitCode == 101;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)

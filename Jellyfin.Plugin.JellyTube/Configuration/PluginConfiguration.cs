@@ -75,6 +75,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public int PlaylistMaxAgeDays { get; set; } = 0;
 
     /// <summary>
+    /// Gets or sets how many of the most-recent videos to check per channel on each scheduled run.
+    /// Bounds how deep yt-dlp scans a channel's listing (it stops looking past this many entries).
+    /// Must be large enough to cover the configured max age window. 0 = scan the entire channel (slow).
+    /// </summary>
+    public int PlaylistScanLimit { get; set; } = 50;
+
+    /// <summary>
     /// Gets or sets a value indicating whether to write .nfo metadata files.
     /// </summary>
     public bool WriteNfoFiles { get; set; } = false;

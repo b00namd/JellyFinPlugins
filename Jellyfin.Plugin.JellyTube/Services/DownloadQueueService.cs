@@ -26,6 +26,21 @@ public class DownloadQueueService
     /// </summary>
     public DownloadJob Enqueue(string url, bool isPlaylist = false, bool isScheduled = false, string? overrideDownloadPath = null, int maxAgeDays = 0, bool deleteWatched = false, bool force = false)
     {
+        // Don't enqueue a scheduled URL that already has an active job. The scheduled task fires on
+        // a timer; if a channel's previous download is still running, re-enqueuing it would let two
+        // yt-dlp processes write the same files concurrently and collide on .part fragments.
+        if (isScheduled)
+        {
+            var active = _jobs.Values.FirstOrDefault(j =>
+                string.Equals(j.Url, url, StringComparison.OrdinalIgnoreCase) &&
+                j.Status is DownloadJobStatus.Queued
+                         or DownloadJobStatus.FetchingMetadata
+                         or DownloadJobStatus.Downloading
+                         or DownloadJobStatus.WritingMetadata);
+            if (active is not null)
+                return active;
+        }
+
         var job = new DownloadJob
         {
             Url = url,
