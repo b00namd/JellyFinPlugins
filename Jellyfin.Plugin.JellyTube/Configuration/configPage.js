@@ -484,6 +484,15 @@
                 .catch(function (err) { showToast('Fehler: ' + err); });
         });
 
+        document.getElementById('yt-reconcile-archive-btn').addEventListener('click', function () {
+            fetch(API_BASE + '/archive/reconcile', { method: 'POST', headers: apiHeaders() })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r.statusText); })
+                .then(function (count) {
+                    showToast(count + ' verwaiste Eintrag/Einträge entfernt. Fehlende Videos werden beim nächsten Lauf geladen.');
+                })
+                .catch(function (err) { showToast('Fehler beim Abgleich: ' + err); });
+        });
+
         document.getElementById('yt-save-btn').addEventListener('click', saveConfig);
         document.getElementById('yt-fetch-meta-btn').addEventListener('click', fetchMetadata);
         document.getElementById('yt-download-btn').addEventListener('click', enqueueDownload);

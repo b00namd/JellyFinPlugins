@@ -219,7 +219,8 @@ public class WatchedVideoCleanupService : IHostedService
 
         if (!string.IsNullOrWhiteSpace(videoId))
         {
-            _archive.Add(videoId);
+            // Protected: intentionally deleted after watching, must not be re-downloaded by a reconcile.
+            _archive.AddProtected(videoId);
         }
         else
         {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +14,9 @@ namespace Jellyfin.Plugin.JellyTube.Services;
 public class DownloadArchiveService
 {
     private readonly string _archivePath;
+    private readonly string _protectedPath;
     private readonly HashSet<string> _videoIds;
+    private readonly HashSet<string> _protectedIds;
     private readonly object _lock = new();
     private readonly ILogger<DownloadArchiveService> _logger;
 
@@ -24,7 +27,9 @@ public class DownloadArchiveService
     {
         _logger = logger;
         _archivePath = Path.Combine(appPaths.PluginConfigurationsPath, "jellytube-archive.txt");
-        _videoIds = Load();
+        _protectedPath = Path.Combine(appPaths.PluginConfigurationsPath, "jellytube-protected.txt");
+        _videoIds = Load(_archivePath);
+        _protectedIds = Load(_protectedPath);
     }
 
     /// <summary>Gets the path to the archive file passed to yt-dlp via --download-archive.</summary>
@@ -94,27 +99,81 @@ public class DownloadArchiveService
         lock (_lock)
         {
             _videoIds.Clear();
+            _protectedIds.Clear();
             if (File.Exists(_archivePath))
                 File.Delete(_archivePath);
+            if (File.Exists(_protectedPath))
+                File.Delete(_protectedPath);
             _logger.LogInformation("Download archive cleared.");
         }
     }
 
-    private HashSet<string> Load()
+    /// <summary>
+    /// Adds a video ID to the archive AND marks it as protected, meaning it is intentionally absent
+    /// from disk (members-only, or watched-and-deleted) and must NOT be re-downloaded by a reconcile.
+    /// </summary>
+    public void AddProtected(string videoId)
+    {
+        if (string.IsNullOrWhiteSpace(videoId))
+            return;
+
+        Add(videoId);
+        lock (_lock)
+        {
+            if (_protectedIds.Add(videoId))
+                File.AppendAllText(_protectedPath, $"youtube {videoId}{Environment.NewLine}");
+        }
+    }
+
+    /// <summary>
+    /// Removes archive entries whose video is no longer on disk and which are not protected
+    /// (members-only / watched-deleted). Such "archived but missing" entries are failed downloads;
+    /// removing them lets the next scheduled run fetch them again. Returns the removed IDs.
+    /// </summary>
+    public IReadOnlyList<string> Reconcile(ISet<string> presentVideoIds)
+    {
+        lock (_lock)
+        {
+            var orphaned = _videoIds
+                .Where(id => !presentVideoIds.Contains(id) && !_protectedIds.Contains(id))
+                .ToList();
+
+            foreach (var id in orphaned)
+                _videoIds.Remove(id);
+
+            if (orphaned.Count > 0 && File.Exists(_archivePath))
+            {
+                var orphanSet = new HashSet<string>(orphaned, StringComparer.OrdinalIgnoreCase);
+                var remaining = new List<string>();
+                foreach (var line in File.ReadAllLines(_archivePath))
+                {
+                    var parts = line.Trim().Split(' ');
+                    if (parts.Length < 2 || !orphanSet.Contains(parts[1]))
+                        remaining.Add(line);
+                }
+                File.WriteAllLines(_archivePath, remaining);
+            }
+
+            _logger.LogInformation("Archive reconcile removed {Count} orphaned entrie(s).", orphaned.Count);
+            return orphaned;
+        }
+    }
+
+    private HashSet<string> Load(string path)
     {
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (!File.Exists(_archivePath))
+        if (!File.Exists(path))
             return ids;
 
-        foreach (var line in File.ReadAllLines(_archivePath))
+        foreach (var line in File.ReadAllLines(path))
         {
             var parts = line.Trim().Split(' ');
             if (parts.Length >= 2)
                 ids.Add(parts[1]);
         }
 
-        _logger.LogInformation("Loaded {Count} entries from download archive.", ids.Count);
+        _logger.LogInformation("Loaded {Count} entries from '{Path}'.", ids.Count, Path.GetFileName(path));
         return ids;
     }
 }

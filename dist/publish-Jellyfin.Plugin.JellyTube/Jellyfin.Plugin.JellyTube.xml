@@ -67,6 +67,19 @@
             Clears the download archive so all scheduled playlist videos can be re-downloaded.
             </summary>
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Api.JellyTubeController.ReconcileArchive">
+            <summary>
+            Reconciles the download archive against the files on disk: removes "archived but missing"
+            entries (failed downloads) so they are re-fetched, while keeping protected entries
+            (members-only and watched-then-deleted videos). Returns how many entries were removed.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Api.JellyTubeController.CollectPresentVideoIds">
+            <summary>
+            Scans the configured download directories for downloaded videos and returns the set of
+            YouTube video IDs that are actually present (a video file with a sibling .info.json).
+            </summary>
+        </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Api.JellyTubeController.GetStatus">
             <summary>
             Returns a summary of queue statistics.
@@ -453,13 +466,20 @@
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask">
             <summary>
-            Jellyfin scheduled task that downloads the latest yt-dlp binary.
-            Runs weekly by default.
+            Jellyfin scheduled task that downloads the latest yt-dlp binary into the plugin's writable
+            configuration directory. Runs weekly by default.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask})">
+        <member name="M:Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask},MediaBrowser.Common.Configuration.IApplicationPaths,System.Net.Http.IHttpClientFactory)">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask.GetReleaseAssetName">
+            <summary>
+            Picks the standalone yt-dlp release asset for the current OS/architecture. The standalone
+            builds bundle Python, so they run in minimal containers that don't ship python3 (unlike the
+            plain "yt-dlp" zipapp asset, which needs a system Python).
             </summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTube.ScheduledTasks.UpdateYtDlpTask.Name">
@@ -519,6 +539,19 @@
         <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService.Clear">
             <summary>
             Clears the archive file and the in-memory set so all videos can be re-downloaded.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService.AddProtected(System.String)">
+            <summary>
+            Adds a video ID to the archive AND marks it as protected, meaning it is intentionally absent
+            from disk (members-only, or watched-and-deleted) and must NOT be re-downloaded by a reconcile.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService.Reconcile(System.Collections.Generic.ISet{System.String})">
+            <summary>
+            Removes archive entries whose video is no longer on disk and which are not protected
+            (members-only / watched-deleted). Such "archived but missing" entries are failed downloads;
+            removing them lets the next scheduled run fetch them again. Returns the removed IDs.
             </summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.DownloadQueueService">
@@ -686,9 +719,22 @@
             Wraps YoutubeDLSharp to fetch metadata and download videos via yt-dlp.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTube.Services.YtDlpService},Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService)">
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTube.Services.YtDlpService},Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService,MediaBrowser.Common.Configuration.IApplicationPaths)">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTube.Services.YtDlpService"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.GetManagedYtDlpPath(MediaBrowser.Common.Configuration.IApplicationPaths)">
+            <summary>
+            Path to the plugin-managed yt-dlp binary in the (writable) plugin configuration directory.
+            Used so the auto-update task can keep yt-dlp current without needing write access to a
+            system path like /usr/local/bin (which is read-only in many container images).
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.ResolveYtDlpBinary">
+            <summary>
+            Resolves the yt-dlp binary to invoke: an explicit configured path wins; otherwise the
+            plugin-managed binary if it has been downloaded; otherwise "yt-dlp" from PATH.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.FetchMetadataAsync(System.String,System.Threading.CancellationToken)">

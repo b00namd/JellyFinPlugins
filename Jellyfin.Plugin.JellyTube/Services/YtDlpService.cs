@@ -17,6 +17,7 @@ public class YtDlpService
 {
     private readonly ILogger<YtDlpService> _logger;
     private readonly DownloadArchiveService _archive;
+    private readonly MediaBrowser.Common.Configuration.IApplicationPaths _appPaths;
 
     // Matches yt-dlp's members-only error, e.g.:
     //   ERROR: [youtube] mL-np8L4NiY: Join this channel to get access to members-only content…
@@ -27,10 +28,34 @@ public class YtDlpService
     /// <summary>
     /// Initializes a new instance of the <see cref="YtDlpService"/> class.
     /// </summary>
-    public YtDlpService(ILogger<YtDlpService> logger, DownloadArchiveService archive)
+    public YtDlpService(ILogger<YtDlpService> logger, DownloadArchiveService archive, MediaBrowser.Common.Configuration.IApplicationPaths appPaths)
     {
         _logger = logger;
         _archive = archive;
+        _appPaths = appPaths;
+    }
+
+    /// <summary>
+    /// Path to the plugin-managed yt-dlp binary in the (writable) plugin configuration directory.
+    /// Used so the auto-update task can keep yt-dlp current without needing write access to a
+    /// system path like /usr/local/bin (which is read-only in many container images).
+    /// </summary>
+    internal static string GetManagedYtDlpPath(MediaBrowser.Common.Configuration.IApplicationPaths appPaths) =>
+        System.IO.Path.Combine(appPaths.PluginConfigurationsPath,
+            OperatingSystem.IsWindows() ? "yt-dlp.exe" : "yt-dlp");
+
+    /// <summary>
+    /// Resolves the yt-dlp binary to invoke: an explicit configured path wins; otherwise the
+    /// plugin-managed binary if it has been downloaded; otherwise "yt-dlp" from PATH.
+    /// </summary>
+    private string ResolveYtDlpBinary()
+    {
+        var configured = Plugin.Instance!.Configuration.YtDlpBinaryPath;
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
+        var managed = GetManagedYtDlpPath(_appPaths);
+        return System.IO.File.Exists(managed) ? managed : "yt-dlp";
     }
 
     /// <summary>
@@ -112,7 +137,7 @@ public class YtDlpService
         bool isScheduled = false)
     {
         var config = Plugin.Instance!.Configuration;
-        var binary = string.IsNullOrWhiteSpace(config.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
+        var binary = ResolveYtDlpBinary();
         // Scan the channel's "/videos" tab instead of its root so YouTube Shorts (which live in a
         // separate tab) are not pulled in. Shorts are normalised to plain watch URLs, so a URL or
         // duration filter can't reliably exclude them — targeting the Videos tab is the clean way.
@@ -169,8 +194,8 @@ public class YtDlpService
                 psi.ArgumentList.Add(config.CookiesFilePath);
             }
 
-            if (config.DownloadThumbnails)
-                psi.ArgumentList.Add("--write-thumbnail");
+            // NOTE: no --write-thumbnail. yt-dlp would write a redundant .webp next to each video;
+            // ThumbnailService already downloads a Jellyfin-friendly "-thumb.jpg" from the metadata.
 
             if (config.DownloadSubtitles)
             {
@@ -260,7 +285,7 @@ public class YtDlpService
                             var id = m.Groups[1].Value;
                             if (!_archive.Contains(id))
                             {
-                                _archive.Add(id);
+                                _archive.AddProtected(id);
                                 _logger.LogInformation("Archived members-only video {VideoId} so it is skipped on future runs.", id);
                             }
                         }
@@ -338,15 +363,13 @@ public class YtDlpService
         return url;
     }
 
-    private static YoutubeDL CreateClient(string? outputDir = null)
+    private YoutubeDL CreateClient(string? outputDir = null)
     {
         var config = Plugin.Instance!.Configuration;
 
         return new YoutubeDL
         {
-            YoutubeDLPath = string.IsNullOrWhiteSpace(config.YtDlpBinaryPath)
-                ? "yt-dlp"
-                : config.YtDlpBinaryPath,
+            YoutubeDLPath = ResolveYtDlpBinary(),
             FFmpegPath = string.IsNullOrWhiteSpace(config.FfmpegBinaryPath)
                 ? "ffmpeg"
                 : config.FfmpegBinaryPath,
@@ -371,7 +394,8 @@ public class YtDlpService
 
         var opts = new OptionSet
         {
-            WriteThumbnail  = config.DownloadThumbnails,
+            // No WriteThumbnail: ThumbnailService downloads a "-thumb.jpg" itself; yt-dlp's .webp
+            // would just be redundant clutter next to the video.
             WriteAutoSubs   = config.DownloadSubtitles,
             WriteSubs       = config.DownloadSubtitles,
             SubLangs        = config.DownloadSubtitles ? config.SubtitleLanguages : null,

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTube.Models;
@@ -233,6 +235,79 @@ public class JellyTubeController : ControllerBase
     {
         _archive.Clear();
         return NoContent();
+    }
+
+    /// <summary>
+    /// Reconciles the download archive against the files on disk: removes "archived but missing"
+    /// entries (failed downloads) so they are re-fetched, while keeping protected entries
+    /// (members-only and watched-then-deleted videos). Returns how many entries were removed.
+    /// </summary>
+    [HttpPost("archive/reconcile")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<int> ReconcileArchive()
+    {
+        var present = CollectPresentVideoIds();
+        var removed = _archive.Reconcile(present);
+        return Ok(removed.Count);
+    }
+
+    /// <summary>
+    /// Scans the configured download directories for downloaded videos and returns the set of
+    /// YouTube video IDs that are actually present (a video file with a sibling .info.json).
+    /// </summary>
+    private static HashSet<string> CollectPresentVideoIds()
+    {
+        var config = Plugin.Instance!.Configuration;
+        var videoExts = new[] { ".mp4", ".mkv", ".webm", ".avi" };
+
+        var basePaths = new List<string>();
+        if (!string.IsNullOrWhiteSpace(config.DownloadPath))
+            basePaths.Add(config.DownloadPath);
+        foreach (var entry in config.ScheduledEntries)
+            if (!string.IsNullOrWhiteSpace(entry.DownloadPath))
+                basePaths.Add(entry.DownloadPath);
+
+        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var basePath in basePaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!Directory.Exists(basePath))
+                continue;
+
+            foreach (var json in Directory.EnumerateFiles(basePath, "*.info.json", SearchOption.AllDirectories))
+            {
+                var dir = Path.GetDirectoryName(json)!;
+                var stem = Path.GetFileName(json);
+                stem = stem[..^".info.json".Length];
+
+                if (!videoExts.Any(ext => System.IO.File.Exists(Path.Combine(dir, stem + ext))))
+                    continue; // info.json without a real video file → not "present"
+
+                var id = ReadInfoJsonId(json);
+                if (!string.IsNullOrEmpty(id))
+                    present.Add(id);
+            }
+        }
+
+        return present;
+    }
+
+    private static string? ReadInfoJsonId(string path)
+    {
+        try
+        {
+            using var stream = System.IO.File.OpenRead(path);
+            using var doc = JsonDocument.Parse(stream);
+            if (doc.RootElement.TryGetProperty("id", out var idProp) &&
+                idProp.ValueKind == JsonValueKind.String)
+                return idProp.GetString();
+        }
+        catch
+        {
+            // ignore unreadable/partial info.json
+        }
+
+        return null;
     }
 
     /// <summary>
