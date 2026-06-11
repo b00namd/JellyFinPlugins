@@ -262,6 +262,26 @@ public class DownloadWorkerService : BackgroundService
                 continue;
 
             var videoDir = Path.GetDirectoryName(jsonPath) ?? outputDir;
+
+            // Channel-level series metadata (tvshow.nfo + poster/banner) depends only on the
+            // info.json, so handle it even for videos already renamed to a clean title — their files
+            // no longer contain the id and so can't be re-located below, which would otherwise skip
+            // them entirely on re-runs.
+            if (config.OrganiseAsSeries && config.WriteNfoFiles)
+            {
+                var seriesDir = Directory.GetParent(videoDir)?.FullName ?? videoDir;
+                await _nfo.EnsureTvShowNfoAsync(seriesDir, videoMeta.ChannelName, videoMeta.ChannelId, videoMeta.ThumbnailUrl);
+
+                if (config.DownloadThumbnails)
+                {
+                    var channelUrl = !string.IsNullOrWhiteSpace(videoMeta.UploaderUrl)
+                        ? videoMeta.UploaderUrl
+                        : (!string.IsNullOrWhiteSpace(videoMeta.ChannelId) ? $"https://www.youtube.com/channel/{videoMeta.ChannelId}" : null);
+                    if (!string.IsNullOrWhiteSpace(channelUrl))
+                        seriesArtwork = (seriesDir, channelUrl);
+                }
+            }
+
             var videoFile = LocateDownloadedFile(videoDir, videoMeta.VideoId);
             if (videoFile is null)
                 continue;
@@ -277,25 +297,9 @@ public class DownloadWorkerService : BackgroundService
             {
                 var nfoPath = LibraryOrganizationService.GetNfoPath(videoFile);
                 if (config.OrganiseAsSeries)
-                {
                     await _nfo.WriteEpisodeNfoAsync(videoMeta, nfoPath);
-
-                    // The series folder is the channel folder (parent of the "Season <year>" folder).
-                    var seriesDir = Directory.GetParent(videoDir)?.FullName ?? videoDir;
-                    await _nfo.EnsureTvShowNfoAsync(seriesDir, videoMeta.ChannelName, videoMeta.ChannelId, videoMeta.ThumbnailUrl);
-
-                    // Series poster/backdrop should be the real channel logo/banner, not a video frame —
-                    // fetched once after the loop from the channel page.
-                    var channelUrl = !string.IsNullOrWhiteSpace(videoMeta.UploaderUrl)
-                        ? videoMeta.UploaderUrl
-                        : (!string.IsNullOrWhiteSpace(videoMeta.ChannelId) ? $"https://www.youtube.com/channel/{videoMeta.ChannelId}" : null);
-                    if (!string.IsNullOrWhiteSpace(channelUrl))
-                        seriesArtwork = (seriesDir, channelUrl);
-                }
                 else
-                {
                     await _nfo.WriteNfoAsync(videoMeta, nfoPath);
-                }
             }
 
             if (config.DownloadThumbnails && !string.IsNullOrEmpty(videoMeta.ThumbnailUrl))
