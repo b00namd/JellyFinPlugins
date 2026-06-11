@@ -16,13 +16,21 @@ namespace Jellyfin.Plugin.JellyTube.Services;
 public class YtDlpService
 {
     private readonly ILogger<YtDlpService> _logger;
+    private readonly DownloadArchiveService _archive;
+
+    // Matches yt-dlp's members-only error, e.g.:
+    //   ERROR: [youtube] mL-np8L4NiY: Join this channel to get access to members-only content…
+    private static readonly System.Text.RegularExpressions.Regex _membersOnlyRegex = new(
+        @"\[youtube\]\s+([A-Za-z0-9_-]{11}):\s+Join this channel",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="YtDlpService"/> class.
     /// </summary>
-    public YtDlpService(ILogger<YtDlpService> logger)
+    public YtDlpService(ILogger<YtDlpService> logger, DownloadArchiveService archive)
     {
         _logger = logger;
+        _archive = archive;
     }
 
     /// <summary>
@@ -131,6 +139,9 @@ public class YtDlpService
             psi.ArgumentList.Add("--ignore-errors");
             psi.ArgumentList.Add("--no-overwrites");
             psi.ArgumentList.Add("--write-info-json");
+            // Don't litter the media folders with channel/tab-level playlist .info.json files
+            // (e.g. "<Channel> - Videos - <id>.info.json"); we only need the per-video ones.
+            psi.ArgumentList.Add("--no-write-playlist-metafiles");
             psi.ArgumentList.Add("-o");
             var outputTemplate = config.OrganiseByChannel
                 ? System.IO.Path.Combine(outputDir, "%(channel)s", "%(title)s - %(id)s.%(ext)s")
@@ -235,7 +246,26 @@ public class YtDlpService
 
                 var stderr = stderrTask.Result.Trim();
                 if (!string.IsNullOrEmpty(stderr))
+                {
                     _logger.LogInformation("yt-dlp stderr: {Stderr}", stderr);
+
+                    // Members-only videos can't be fetched without a membership and error on every
+                    // run (yt-dlp only learns the status during extraction, so a match-filter can't
+                    // pre-skip them). Record their IDs in the archive so the next scheduled run skips
+                    // them before extraction — no repeated error, no spurious "completed with errors".
+                    if (!string.IsNullOrEmpty(archivePath))
+                    {
+                        foreach (System.Text.RegularExpressions.Match m in _membersOnlyRegex.Matches(stderr))
+                        {
+                            var id = m.Groups[1].Value;
+                            if (!_archive.Contains(id))
+                            {
+                                _archive.Add(id);
+                                _logger.LogInformation("Archived members-only video {VideoId} so it is skipped on future runs.", id);
+                            }
+                        }
+                    }
+                }
 
                 _logger.LogInformation("yt-dlp playlist download finished, exit code {Code}", proc.ExitCode);
 

@@ -177,7 +177,7 @@ public class DownloadWorkerService : BackgroundService
             _logger.LogWarning("Job {Id}: playlist download reported errors (some videos may be unavailable). Writing metadata for successful downloads.", job.Id);
         }
 
-        CleanupIntermediateFiles(outputDir);
+        CleanupJobIntermediateFiles(job, outputDir);
 
         // Step 3 – write NFO and thumbnails
         job.Status = DownloadJobStatus.WritingMetadata;
@@ -373,7 +373,41 @@ public class DownloadWorkerService : BackgroundService
         }
     }
 
-    private void CleanupIntermediateFiles(string dir)
+    /// <summary>
+    /// Cleans yt-dlp intermediates for a finished job, scoped so concurrent channel downloads
+    /// never touch each other's in-progress files.
+    /// </summary>
+    private void CleanupJobIntermediateFiles(DownloadJob job, string outputDir)
+    {
+        var config = Plugin.Instance!.Configuration;
+
+        // Playlist + per-channel folders: videos land in subfolders. Only clean the subfolders THIS
+        // job actually wrote to (something modified since it started), so we never reach into a
+        // channel another concurrent job is still downloading. Single-video and flat-playlist jobs
+        // already point at one specific folder, so cleaning it directly (non-recursive) is safe.
+        if (job.IsPlaylist && config.OrganiseByChannel && Directory.Exists(outputDir))
+        {
+            var since = job.StartedAt ?? DateTime.MinValue;
+            foreach (var subdir in Directory.EnumerateDirectories(outputDir))
+            {
+                try
+                {
+                    if (Directory.EnumerateFiles(subdir).Any(f => File.GetLastWriteTimeUtc(f) >= since))
+                        CleanupIntermediateFiles(subdir, recursive: false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not scan '{Dir}' for intermediate cleanup.", subdir);
+                }
+            }
+        }
+        else
+        {
+            CleanupIntermediateFiles(outputDir, recursive: false);
+        }
+    }
+
+    private void CleanupIntermediateFiles(string dir, bool recursive)
     {
         if (!Directory.Exists(dir))
             return;
@@ -388,8 +422,9 @@ public class DownloadWorkerService : BackgroundService
         // in-progress fragments. Skip anything modified very recently so we don't delete a file
         // another yt-dlp process is still writing (which caused "Unable to rename .part" errors).
         var inProgressCutoff = DateTime.UtcNow.AddMinutes(-15);
+        var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         int deleted = 0;
-        foreach (var file in Directory.EnumerateFiles(dir, "*.*", SearchOption.AllDirectories).ToList())
+        foreach (var file in Directory.EnumerateFiles(dir, "*.*", searchOption).ToList())
         {
             var name = Path.GetFileName(file);
 

@@ -582,6 +582,12 @@
         <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.ExecuteAsync(System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.CleanupJobIntermediateFiles(Jellyfin.Plugin.JellyTube.Models.DownloadJob,System.String)">
+            <summary>
+            Cleans yt-dlp intermediates for a finished job, scoped so concurrent channel downloads
+            never touch each other's in-progress files.
+            </summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.LibraryOrganizationService">
             <summary>
             Determines the on-disk folder layout for downloaded videos.
@@ -672,7 +678,7 @@
             Wraps YoutubeDLSharp to fetch metadata and download videos via yt-dlp.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTube.Services.YtDlpService})">
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTube.Services.YtDlpService},Jellyfin.Plugin.JellyTube.Services.DownloadArchiveService)">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTube.Services.YtDlpService"/> class.
             </summary>
