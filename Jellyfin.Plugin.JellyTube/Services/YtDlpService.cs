@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTube.Models;
@@ -327,6 +328,71 @@ public class YtDlpService
         {
             _logger.LogError(ex, "Exception while downloading playlist {Url}", url);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches a channel's artwork URLs (square avatar/logo and wide banner) without listing any
+    /// videos. Returns (null, null) on failure.
+    /// </summary>
+    public async Task<(string? Avatar, string? Banner)> FetchChannelArtworkAsync(string channelUrl, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(channelUrl))
+            return (null, null);
+
+        try
+        {
+            var config = Plugin.Instance!.Configuration;
+            var psi = new ProcessStartInfo
+            {
+                FileName               = ResolveYtDlpBinary(),
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            };
+            psi.ArgumentList.Add("--playlist-items");
+            psi.ArgumentList.Add("0"); // channel metadata only, don't enumerate videos
+            psi.ArgumentList.Add("-J");
+            if (!string.IsNullOrWhiteSpace(config.CookiesFilePath))
+            {
+                psi.ArgumentList.Add("--cookies");
+                psi.ArgumentList.Add(config.CookiesFilePath);
+            }
+            psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add(channelUrl);
+
+            using var proc = new Process { StartInfo = psi };
+            proc.Start();
+            var json = await proc.StandardOutput.ReadToEndAsync(ct);
+            await proc.WaitForExitAsync(ct);
+
+            if (string.IsNullOrWhiteSpace(json))
+                return (null, null);
+
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("thumbnails", out var thumbs) || thumbs.ValueKind != JsonValueKind.Array)
+                return (null, null);
+
+            string? avatar = null, banner = null;
+            foreach (var t in thumbs.EnumerateArray())
+            {
+                var id = t.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                var url = t.TryGetProperty("url", out var urlEl) ? urlEl.GetString() : null;
+                if (string.IsNullOrEmpty(url))
+                    continue;
+                if (string.Equals(id, "avatar_uncropped", StringComparison.OrdinalIgnoreCase))
+                    avatar = url;
+                else if (string.Equals(id, "banner_uncropped", StringComparison.OrdinalIgnoreCase))
+                    banner = url;
+            }
+
+            return (avatar, banner);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not fetch channel artwork for {Url}", channelUrl);
+            return (null, null);
         }
     }
 

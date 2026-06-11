@@ -252,6 +252,9 @@ public class DownloadWorkerService : BackgroundService
         var organiseInSubfolders = config.OrganiseByChannel || config.OrganiseAsSeries;
         var searchOption = organiseInSubfolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var infoJsonFiles = Directory.EnumerateFiles(outputDir, "*.info.json", searchOption).ToList();
+
+        // For series mode, remember a channel's folder + URL so real channel artwork can be fetched once.
+        (string Dir, string ChannelUrl)? seriesArtwork = null;
         foreach (var jsonPath in infoJsonFiles)
         {
             var videoMeta = await ParseInfoJsonAsync(jsonPath, ct);
@@ -280,8 +283,14 @@ public class DownloadWorkerService : BackgroundService
                     // The series folder is the channel folder (parent of the "Season <year>" folder).
                     var seriesDir = Directory.GetParent(videoDir)?.FullName ?? videoDir;
                     await _nfo.EnsureTvShowNfoAsync(seriesDir, videoMeta.ChannelName, videoMeta.ChannelId, videoMeta.ThumbnailUrl);
-                    if (config.DownloadThumbnails && !string.IsNullOrEmpty(videoMeta.ThumbnailUrl))
-                        await _thumbs.EnsureChannelPosterAsync(seriesDir, videoMeta.ThumbnailUrl, ct);
+
+                    // Series poster/backdrop should be the real channel logo/banner, not a video frame —
+                    // fetched once after the loop from the channel page.
+                    var channelUrl = !string.IsNullOrWhiteSpace(videoMeta.UploaderUrl)
+                        ? videoMeta.UploaderUrl
+                        : (!string.IsNullOrWhiteSpace(videoMeta.ChannelId) ? $"https://www.youtube.com/channel/{videoMeta.ChannelId}" : null);
+                    if (!string.IsNullOrWhiteSpace(channelUrl))
+                        seriesArtwork = (seriesDir, channelUrl);
                 }
                 else
                 {
@@ -303,6 +312,27 @@ public class DownloadWorkerService : BackgroundService
         // Non-series channel poster (series posters are written per channel folder above).
         if (!config.OrganiseAsSeries && config.DownloadThumbnails && lastThumbnailUrl is not null)
             await _thumbs.EnsureChannelPosterAsync(outputDir, lastThumbnailUrl, ct);
+
+        // Series: real channel logo as poster + banner as backdrop.
+        if (config.OrganiseAsSeries && config.DownloadThumbnails && seriesArtwork is { } art)
+            await EnsureSeriesArtworkAsync(art.Dir, art.ChannelUrl, ct);
+    }
+
+    /// <summary>
+    /// Writes the channel's logo as <c>poster.jpg</c> and its banner as <c>backdrop.jpg</c> in the
+    /// series folder, refreshed at most every 30 days (channel art rarely changes).
+    /// </summary>
+    private async Task EnsureSeriesArtworkAsync(string seriesDir, string channelUrl, CancellationToken ct)
+    {
+        var posterPath = Path.Combine(seriesDir, "poster.jpg");
+        if (File.Exists(posterPath) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(posterPath)) < TimeSpan.FromDays(30))
+            return;
+
+        var (avatar, banner) = await _ytDlp.FetchChannelArtworkAsync(channelUrl, ct);
+        if (!string.IsNullOrWhiteSpace(avatar))
+            await _thumbs.DownloadThumbnailAsync(avatar, posterPath, ct);
+        if (!string.IsNullOrWhiteSpace(banner))
+            await _thumbs.DownloadThumbnailAsync(banner, Path.Combine(seriesDir, "backdrop.jpg"), ct);
     }
 
     private async Task<VideoMetadata?> ParseInfoJsonAsync(string jsonPath, CancellationToken ct)

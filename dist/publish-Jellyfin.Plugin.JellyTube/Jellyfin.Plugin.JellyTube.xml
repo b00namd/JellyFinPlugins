@@ -635,6 +635,12 @@
         <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.ExecuteAsync(System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.EnsureSeriesArtworkAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Writes the channel's logo as <c>poster.jpg</c> and its banner as <c>backdrop.jpg</c> in the
+            series folder, refreshed at most every 30 days (channel art rarely changes).
+            </summary>
+        </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.CleanupJobIntermediateFiles(Jellyfin.Plugin.JellyTube.Models.DownloadJob,System.String)">
             <summary>
             Cleans yt-dlp intermediates for a finished job, scoped so concurrent channel downloads
@@ -801,6 +807,12 @@
         <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.DownloadPlaylistAsync(System.String,System.String,System.IProgress{YoutubeDLSharp.DownloadProgress},System.Threading.CancellationToken,System.String,System.Int32,System.Boolean)">
             <summary>
             Downloads all videos in a playlist to the specified output directory.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.FetchChannelArtworkAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Fetches a channel's artwork URLs (square avatar/logo and wide banner) without listing any
+            videos. Returns (null, null) on failure.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.NormalizeChannelUrl(System.String,System.Boolean)">
