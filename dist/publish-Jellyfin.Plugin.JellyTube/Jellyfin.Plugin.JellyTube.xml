@@ -173,6 +173,13 @@
             Must be large enough to cover the configured max age window. 0 = scan the entire channel (slow).
             </summary>
         </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.ExcludeShorts">
+            <summary>
+            Gets or sets a value indicating whether YouTube Shorts are excluded from channel downloads.
+            When enabled, a bare channel URL is scanned via its "/videos" tab (long-form uploads only)
+            instead of the channel root, which also pulls in the separate Shorts tab.
+            </summary>
+        </member>
         <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.WriteNfoFiles">
             <summary>
             Gets or sets a value indicating whether to write .nfo metadata files.
@@ -684,6 +691,14 @@
         <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.DownloadPlaylistAsync(System.String,System.String,System.IProgress{YoutubeDLSharp.DownloadProgress},System.Threading.CancellationToken,System.String,System.Int32,System.Boolean)">
             <summary>
             Downloads all videos in a playlist to the specified output directory.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.NormalizeChannelUrl(System.String,System.Boolean)">
+            <summary>
+            If <paramref name="excludeShorts"/> is set and the URL is a bare YouTube channel root
+            (e.g. "/@handle", "/channel/UC…", "/c/Name", "/user/Name") with no tab already specified,
+            returns the URL pointing at the "/videos" tab so Shorts/Live are not enumerated. Playlist,
+            watch, and already-tab-qualified URLs are returned unchanged.
             </summary>
         </member>
     </members>

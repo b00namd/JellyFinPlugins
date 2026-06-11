@@ -134,6 +134,7 @@
             document.getElementById('DownloadRetryCount').value         = (config.DownloadRetryCount != null) ? config.DownloadRetryCount : 2;
             document.getElementById('PlaylistScanLimit').value          = (config.PlaylistScanLimit != null) ? config.PlaylistScanLimit : 50;
             document.getElementById('OrganiseByChannel').checked        = !!config.OrganiseByChannel;
+            document.getElementById('ExcludeShorts').checked            = (config.ExcludeShorts != null) ? !!config.ExcludeShorts : true;
             document.getElementById('DownloadSubtitles').checked        = !!config.DownloadSubtitles;
             document.getElementById('SubtitleLanguages').value          = config.SubtitleLanguages || '';
             document.getElementById('DefaultAudioLanguage').value       = config.DefaultAudioLanguage || '';
@@ -165,6 +166,7 @@
             var scanVal = parseInt(document.getElementById('PlaylistScanLimit').value);
             config.PlaylistScanLimit          = isNaN(scanVal) ? 50 : Math.max(0, scanVal);
             config.OrganiseByChannel          = document.getElementById('OrganiseByChannel').checked;
+            config.ExcludeShorts              = document.getElementById('ExcludeShorts').checked;
             config.DownloadSubtitles          = document.getElementById('DownloadSubtitles').checked;
             config.SubtitleLanguages          = document.getElementById('SubtitleLanguages').value;
             config.DefaultAudioLanguage       = document.getElementById('DefaultAudioLanguage').value;

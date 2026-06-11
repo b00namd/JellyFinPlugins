@@ -105,6 +105,10 @@ public class YtDlpService
     {
         var config = Plugin.Instance!.Configuration;
         var binary = string.IsNullOrWhiteSpace(config.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
+        // Scan the channel's "/videos" tab instead of its root so YouTube Shorts (which live in a
+        // separate tab) are not pulled in. Shorts are normalised to plain watch URLs, so a URL or
+        // duration filter can't reliably exclude them — targeting the Videos tab is the clean way.
+        var effectiveUrl = NormalizeChannelUrl(url, config.ExcludeShorts);
         var mergeFormat = config.PreferredContainer?.ToLowerInvariant() switch
         {
             "mkv"  => "mkv",
@@ -210,9 +214,9 @@ public class YtDlpService
             }
 
             psi.ArgumentList.Add("--");
-            psi.ArgumentList.Add(url);
+            psi.ArgumentList.Add(effectiveUrl);
 
-            _logger.LogInformation("yt-dlp playlist download starting: {Url} → {Dir}", url, outputDir);
+            _logger.LogInformation("yt-dlp playlist download starting: {Url} → {Dir}", effectiveUrl, outputDir);
 
             using var proc = new Process { StartInfo = psi };
             proc.Start();
@@ -258,6 +262,51 @@ public class YtDlpService
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    // Channel tabs that already target specific content — if the URL ends in one of these we leave
+    // it alone (e.g. an explicit "/shorts" or "/streams" the user deliberately added).
+    private static readonly string[] _channelTabs =
+    {
+        "videos", "shorts", "streams", "live", "playlists", "featured",
+        "community", "about", "releases", "podcasts", "courses", "store"
+    };
+
+    /// <summary>
+    /// If <paramref name="excludeShorts"/> is set and the URL is a bare YouTube channel root
+    /// (e.g. "/@handle", "/channel/UC…", "/c/Name", "/user/Name") with no tab already specified,
+    /// returns the URL pointing at the "/videos" tab so Shorts/Live are not enumerated. Playlist,
+    /// watch, and already-tab-qualified URLs are returned unchanged.
+    /// </summary>
+    internal static string NormalizeChannelUrl(string url, bool excludeShorts)
+    {
+        if (!excludeShorts || string.IsNullOrWhiteSpace(url))
+            return url;
+
+        // Leave playlists, single videos, and explicit shorts URLs untouched.
+        if (url.Contains("list=", StringComparison.OrdinalIgnoreCase) ||
+            url.Contains("/watch", StringComparison.OrdinalIgnoreCase) ||
+            url.Contains("/shorts/", StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        var trimmed = url.TrimEnd('/');
+
+        // Already pointing at a specific channel tab?
+        var lastSegment = trimmed[(trimmed.LastIndexOf('/') + 1)..];
+        var queryStart = lastSegment.IndexOf('?', StringComparison.Ordinal);
+        if (queryStart >= 0)
+            lastSegment = lastSegment[..queryStart];
+        if (Array.Exists(_channelTabs, t => string.Equals(t, lastSegment, StringComparison.OrdinalIgnoreCase)))
+            return url;
+
+        // Bare channel root → append the Videos tab.
+        if (trimmed.Contains("/@", StringComparison.Ordinal) ||
+            trimmed.Contains("/channel/", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("/c/", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("/user/", StringComparison.OrdinalIgnoreCase))
+            return trimmed + "/videos";
+
+        return url;
+    }
 
     private static YoutubeDL CreateClient(string? outputDir = null)
     {
