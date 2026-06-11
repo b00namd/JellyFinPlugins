@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -253,8 +254,9 @@ public class DownloadWorkerService : BackgroundService
         var searchOption = organiseInSubfolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var infoJsonFiles = Directory.EnumerateFiles(outputDir, "*.info.json", searchOption).ToList();
 
-        // For series mode, remember a channel's folder + URL so real channel artwork can be fetched once.
-        (string Dir, string ChannelUrl)? seriesArtwork = null;
+        // For series mode, remember each channel's folder -> URL so real artwork is fetched once per
+        // channel (a single metadata pass scans the whole tree, i.e. every channel's info.json).
+        var seriesArtwork = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var jsonPath in infoJsonFiles)
         {
             var videoMeta = await ParseInfoJsonAsync(jsonPath, ct);
@@ -278,7 +280,7 @@ public class DownloadWorkerService : BackgroundService
                         ? videoMeta.UploaderUrl
                         : (!string.IsNullOrWhiteSpace(videoMeta.ChannelId) ? $"https://www.youtube.com/channel/{videoMeta.ChannelId}" : null);
                     if (!string.IsNullOrWhiteSpace(channelUrl))
-                        seriesArtwork = (seriesDir, channelUrl);
+                        seriesArtwork[seriesDir] = channelUrl;
                 }
             }
 
@@ -317,9 +319,10 @@ public class DownloadWorkerService : BackgroundService
         if (!config.OrganiseAsSeries && config.DownloadThumbnails && lastThumbnailUrl is not null)
             await _thumbs.EnsureChannelPosterAsync(outputDir, lastThumbnailUrl, ct);
 
-        // Series: real channel logo as poster + banner as backdrop.
-        if (config.OrganiseAsSeries && config.DownloadThumbnails && seriesArtwork is { } art)
-            await EnsureSeriesArtworkAsync(art.Dir, art.ChannelUrl, ct);
+        // Series: real channel logo as poster + banner as backdrop, for every channel seen.
+        if (config.OrganiseAsSeries && config.DownloadThumbnails)
+            foreach (var (dir, channelUrl) in seriesArtwork)
+                await EnsureSeriesArtworkAsync(dir, channelUrl, ct);
     }
 
     /// <summary>
