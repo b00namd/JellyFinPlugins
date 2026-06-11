@@ -213,6 +213,13 @@
             Gets or sets a value indicating whether watched videos from manual downloads are automatically deleted.
             </summary>
         </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.DeleteWatchedGraceDays">
+            <summary>
+            Gets or sets the number of days to wait after a video is manually marked watched before it is
+            deleted (grace period). 0 = delete on the next cleanup run. Only manual "mark as watched"
+            triggers deletion — Jellyfin auto-marking a video played does not.
+            </summary>
+        </member>
         <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.DefaultAudioLanguage">
             <summary>
             Gets or sets the default audio language tag to embed in downloaded files (e.g. "deu", "eng", "fra").
@@ -720,6 +727,17 @@
             the watched-cleanup — keep it in the download archive and mark it protected, so it is neither
             re-downloaded on the next scheduled run nor pulled back by an archive reconcile. In short:
             "deleted stays deleted".
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.WatchedVideoCleanupService.IsDeleteWatchedCandidate(System.String,Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration)">
+            <summary>True if the video is eligible for delete-after-watched (download-time marker or path/config).</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.WatchedVideoCleanupService.ProcessPendingDeletionsAsync(System.Threading.CancellationToken)">
+            <summary>
+            Deletes videos whose post-watch grace period has expired. A ".delete-pending" marker is
+            written when the user manually marks a delete-watched video as watched; the marker's file
+            timestamp starts the grace period. Once older than DeleteWatchedGraceDays, the video and its
+            sidecars are deleted and the video is protected from re-download.
             </summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.YtDlpService">

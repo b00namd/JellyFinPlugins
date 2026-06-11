@@ -109,6 +109,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool DeleteWatchedManualVideos { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets the number of days to wait after a video is manually marked watched before it is
+    /// deleted (grace period). 0 = delete on the next cleanup run. Only manual "mark as watched"
+    /// triggers deletion — Jellyfin auto-marking a video played does not.
+    /// </summary>
+    public int DeleteWatchedGraceDays { get; set; } = 3;
+
+    /// <summary>
     /// Gets or sets the default audio language tag to embed in downloaded files (e.g. "deu", "eng", "fra").
     /// Leave empty to not set a language tag.
     /// </summary>

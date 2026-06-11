@@ -330,6 +330,13 @@
                         </div>
 
                         <div class="inputContainer">
+                            <label class="inputLabel" for="DeleteWatchedGraceDays">Löschen erst nach (Tage)</label>
+                            <input id="DeleteWatchedGraceDays" name="DeleteWatchedGraceDays" type="number"
+                                   is="emby-input" min="0" max="365" style="max-width:80px;" />
+                            <div class="fieldDescription">Karenzzeit: Ein Video wird erst so viele Tage nach dem Markieren als „gesehen" gelöscht (0 = beim nächsten Aufräumlauf). Es zählt <strong>nur das manuelle Markieren</strong> als gesehen — wenn Jellyfin ein Video automatisch nach ~90 % als gesehen markiert, wird NICHT gelöscht. Vor Ablauf der Karenzzeit wieder auf „ungesehen" setzen behält das Video.</div>
+                        </div>
+
+                        <div class="inputContainer">
                             <label class="inputLabel">Playlist-/Kanal-Einträge</label>
                             <div class="fieldDescription" style="margin-bottom:0.5em;">
                                 Jeder Eintrag hat eine URL, ein optionales Verzeichnis, ein maximales Videoalter (Tage, 0 = kein Limit) und die Option, gesehene Videos automatisch zu löschen.

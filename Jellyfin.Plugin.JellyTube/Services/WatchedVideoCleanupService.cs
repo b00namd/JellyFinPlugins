@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTube.Models;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -28,6 +29,7 @@ public class WatchedVideoCleanupService : IHostedService
     private readonly IUserManager _userManager;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<WatchedVideoCleanupService> _logger;
+    private CancellationTokenSource? _cts;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WatchedVideoCleanupService"/> class.
@@ -54,12 +56,22 @@ public class WatchedVideoCleanupService : IHostedService
         _userDataManager.UserDataSaved += OnUserDataSaved;
         _libraryManager.ItemRemoved += OnItemRemoved;
 
-        // Run startup scan after a short delay to let Jellyfin finish initializing
+        // Periodically delete videos whose post-watch grace period has expired (startup + every 6h).
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var token = _cts.Token;
         _ = Task.Run(async () =>
         {
-            await Task.Delay(TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
-            await ScanAndDeleteWatchedAsync(cancellationToken).ConfigureAwait(false);
-        }, cancellationToken);
+            await Task.Delay(TimeSpan.FromMinutes(2), token).ConfigureAwait(false);
+            while (!token.IsCancellationRequested)
+            {
+                try { await ProcessPendingDeletionsAsync(token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex) { _logger.LogWarning(ex, "Error while processing pending watched deletions."); }
+
+                try { await Task.Delay(TimeSpan.FromHours(6), token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+            }
+        }, token);
 
         return Task.CompletedTask;
     }
@@ -69,6 +81,7 @@ public class WatchedVideoCleanupService : IHostedService
     {
         _userDataManager.UserDataSaved -= OnUserDataSaved;
         _libraryManager.ItemRemoved -= OnItemRemoved;
+        _cts?.Cancel();
         return Task.CompletedTask;
     }
 
@@ -93,11 +106,7 @@ public class WatchedVideoCleanupService : IHostedService
 
         // Prefer the YouTube ID from the library item (set from the NFO's <uniqueid type="youtube">);
         // it survives even when the file and its sidecars are already gone.
-        string? videoId = null;
-        if (e.Item?.ProviderIds is { } providerIds)
-            providerIds.TryGetValue("youtube", out videoId);
-        if (string.IsNullOrWhiteSpace(videoId))
-            videoId = TryExtractVideoId(filePath);
+        var videoId = ResolveVideoId(e.Item, filePath);
 
         if (string.IsNullOrWhiteSpace(videoId))
         {
@@ -126,159 +135,159 @@ public class WatchedVideoCleanupService : IHostedService
         if (config is null)
             return;
 
-        if (!e.UserData.Played)
+        // Manual only: act solely when the user explicitly toggles the watched state, NOT when
+        // Jellyfin auto-marks a video played after it passes its playback threshold (~90%).
+        if (e.SaveReason != UserDataSaveReason.TogglePlayed)
             return;
 
         var filePath = e.Item?.Path;
-        if (string.IsNullOrEmpty(filePath))
+        if (string.IsNullOrEmpty(filePath) || !IsVideoFile(filePath))
             return;
 
-        // Find a matching completed scheduled download job still in memory
-        var job = _queue.GetAllJobs().FirstOrDefault(j =>
-            j.IsScheduled &&
-            j.Status == DownloadJobStatus.Completed &&
-            j.DownloadedFilePath != null &&
-            string.Equals(j.DownloadedFilePath, filePath, StringComparison.OrdinalIgnoreCase));
+        var pendingPath = Path.ChangeExtension(filePath, ".delete-pending");
 
-        // Marker file written at download time survives restarts
-        var markerPath = Path.ChangeExtension(filePath, ".delete-watched");
-        var hasMarker = File.Exists(markerPath);
-
-        // Fallback: check if the file lives under a scheduled entry's download path with DeleteWatched=true
-        bool isUnderScheduledEntry = false;
-        if (job is null && !hasMarker)
+        // Un-marked as watched again → cancel any queued deletion.
+        if (!e.UserData.Played)
         {
-            isUnderScheduledEntry = ShouldDeleteBasedOnPath(filePath, config);
-            if (!isUnderScheduledEntry)
-                return;
+            if (File.Exists(pendingPath))
+            {
+                TryDelete(pendingPath);
+                _logger.LogInformation("'{Path}' marked unwatched again; cancelled queued deletion.", filePath);
+            }
+            return;
         }
 
-        var shouldDelete = hasMarker || isUnderScheduledEntry || (job?.DeleteWatched ?? false) || config.DeleteWatchedScheduledVideos;
-        if (!shouldDelete)
+        // Marked watched. Only queue if this video is a delete-watched candidate.
+        if (!IsDeleteWatchedCandidate(filePath, config))
             return;
 
-        DeleteWatchedFile(filePath, job?.Metadata?.VideoId);
+        var videoId = ResolveVideoId(e.Item, filePath);
+        try
+        {
+            // Queue for deletion; the marker's timestamp starts the grace period.
+            File.WriteAllText(pendingPath, videoId ?? string.Empty);
+            var grace = Math.Max(0, config.DeleteWatchedGraceDays);
+            _logger.LogInformation("'{Path}' marked watched; queued for deletion in {Days} day(s).", filePath, grace);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not write delete-pending marker for '{Path}'.", filePath);
+        }
     }
 
-    private async Task ScanAndDeleteWatchedAsync(CancellationToken ct)
+    /// <summary>True if the video is eligible for delete-after-watched (download-time marker or path/config).</summary>
+    private static bool IsDeleteWatchedCandidate(string filePath, Configuration.PluginConfiguration config)
+    {
+        var marker = Path.ChangeExtension(filePath, ".delete-watched");
+        return File.Exists(marker) || ShouldDeleteBasedOnPath(filePath, config);
+    }
+
+    private string? ResolveVideoId(MediaBrowser.Controller.Entities.BaseItem? item, string filePath)
+    {
+        string? id = null;
+        if (item?.ProviderIds is { } providerIds)
+            providerIds.TryGetValue("youtube", out id);
+        return string.IsNullOrWhiteSpace(id) ? TryExtractVideoId(filePath) : id;
+    }
+
+    /// <summary>
+    /// Deletes videos whose post-watch grace period has expired. A ".delete-pending" marker is
+    /// written when the user manually marks a delete-watched video as watched; the marker's file
+    /// timestamp starts the grace period. Once older than DeleteWatchedGraceDays, the video and its
+    /// sidecars are deleted and the video is protected from re-download.
+    /// </summary>
+    private async Task ProcessPendingDeletionsAsync(CancellationToken ct)
     {
         var config = Plugin.Instance?.Configuration;
         if (config is null)
             return;
 
-        var users = _userManager.Users.ToList();
-        if (users.Count == 0)
-            return;
+        var graceDays = Math.Max(0, config.DeleteWatchedGraceDays);
+        var cutoff = DateTime.UtcNow.AddDays(-graceDays);
 
-        // Collect all paths that should have delete-watched enabled
-        var pathsToScan = config.ScheduledEntries
-            .Where(e => e.DeleteWatched)
-            .Select(e => string.IsNullOrWhiteSpace(e.DownloadPath) ? config.DownloadPath : e.DownloadPath)
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var basePaths = new List<string>();
+        if (!string.IsNullOrWhiteSpace(config.DownloadPath))
+            basePaths.Add(config.DownloadPath);
+        foreach (var entry in config.ScheduledEntries)
+            if (!string.IsNullOrWhiteSpace(entry.DownloadPath))
+                basePaths.Add(entry.DownloadPath);
+        basePaths = basePaths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
-        if (config.DeleteWatchedScheduledVideos && !string.IsNullOrWhiteSpace(config.DownloadPath))
-            pathsToScan.Add(config.DownloadPath);
-
-        if (config.DeleteWatchedManualVideos && !string.IsNullOrWhiteSpace(config.DownloadPath))
-            pathsToScan.Add(config.DownloadPath);
-
-        pathsToScan = pathsToScan.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-        if (pathsToScan.Count == 0)
-            return;
-
-        _logger.LogInformation("Starting watched-video startup scan across {Count} path(s).", pathsToScan.Count);
         int deleted = 0;
         int scanned = 0;
 
-        foreach (var basePath in pathsToScan)
+        foreach (var basePath in basePaths)
         {
             if (ct.IsCancellationRequested)
                 return;
             if (!Directory.Exists(basePath))
                 continue;
 
-            IEnumerable<string> files;
+            IEnumerable<string> markers;
             try
             {
-                files = Directory.EnumerateFiles(basePath, "*.*", SearchOption.AllDirectories);
+                markers = Directory.EnumerateFiles(basePath, "*.delete-pending", SearchOption.AllDirectories);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Could not enumerate files under '{Path}'.", basePath);
+                _logger.LogWarning(ex, "Could not enumerate pending deletions under '{Path}'.", basePath);
                 continue;
             }
 
-            foreach (var filePath in files)
+            foreach (var marker in markers.ToList())
             {
                 if (ct.IsCancellationRequested)
                     return;
-
-                // Yield every 200 files to avoid monopolising the thread on large libraries
                 if (++scanned % 200 == 0)
                     await Task.Yield();
 
-                if (!IsVideoFile(filePath))
-                    continue;
+                DateTime markedAt;
+                try { markedAt = File.GetLastWriteTimeUtc(marker); }
+                catch { continue; }
 
-                BaseItem? item;
-                try
+                if (markedAt > cutoff)
+                    continue; // still within the grace period
+
+                var dir = Path.GetDirectoryName(marker)!;
+                var stem = Path.GetFileNameWithoutExtension(marker); // marker == "<video stem>.delete-pending"
+                var videoFile = FindVideoFile(dir, stem);
+
+                if (videoFile is null)
                 {
-                    item = _libraryManager.FindByPath(filePath, false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "FindByPath failed for '{Path}'.", filePath);
+                    TryDelete(marker); // video already gone; drop the stray marker
                     continue;
                 }
 
-                if (item is null)
-                    continue;
+                string? id = null;
+                try { id = File.ReadAllText(marker).Trim(); }
+                catch { /* fall back below */ }
+                if (string.IsNullOrWhiteSpace(id))
+                    id = TryExtractVideoId(videoFile);
+                if (!string.IsNullOrWhiteSpace(id))
+                    _archive.AddProtected(id);
 
-                var isPlayed = users.Any(user =>
-                    _userDataManager.GetUserData(user, item).Played);
-
-                if (!isPlayed)
-                    continue;
-
-                _logger.LogInformation("Startup scan: deleting already-watched '{Path}'.", filePath);
-                DeleteWatchedFile(filePath, videoId: null);
+                _logger.LogInformation("Grace period expired; deleting watched video '{Path}'.", videoFile);
+                DeleteWithSidecars(videoFile);
                 deleted++;
             }
         }
 
         if (deleted > 0)
         {
-            _logger.LogInformation("Startup scan complete: deleted {Count} watched video(s).", deleted);
+            _logger.LogInformation("Deleted {Count} watched video(s) past their grace period.", deleted);
             _libraryManager.QueueLibraryScan();
-        }
-        else
-        {
-            _logger.LogInformation("Startup scan complete: no watched videos to delete.");
         }
     }
 
-    private void DeleteWatchedFile(string filePath, string? videoId)
+    private static string? FindVideoFile(string dir, string stem)
     {
-        _logger.LogInformation("Watched video '{Path}', deleting file.", filePath);
-
-        if (string.IsNullOrWhiteSpace(videoId))
-            videoId = TryExtractVideoId(filePath);
-
-        if (!string.IsNullOrWhiteSpace(videoId))
+        foreach (var ext in VideoExtensions)
         {
-            // Protected: intentionally deleted after watching, must not be re-downloaded by a reconcile.
-            _archive.AddProtected(videoId);
+            var candidate = Path.Combine(dir, stem + ext);
+            if (File.Exists(candidate))
+                return candidate;
         }
-        else
-        {
-            _logger.LogWarning("Could not extract video ID from '{Path}'. Video will not be added to archive.", filePath);
-        }
-
-        DeleteWithSidecars(filePath);
-        _libraryManager.QueueLibraryScan();
+        return null;
     }
 
     private string? TryExtractVideoId(string filePath)

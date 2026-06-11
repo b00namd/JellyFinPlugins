@@ -143,6 +143,7 @@
             document.getElementById('DownloadThumbnails').checked       = !!config.DownloadThumbnails;
             document.getElementById('TriggerLibraryScanAfterDownload').checked = !!config.TriggerLibraryScanAfterDownload;
             document.getElementById('DeleteWatchedManualVideos').checked = !!config.DeleteWatchedManualVideos;
+            document.getElementById('DeleteWatchedGraceDays').value     = (config.DeleteWatchedGraceDays != null) ? config.DeleteWatchedGraceDays : 3;
             document.getElementById('EnableScheduledDownloads').checked = !!config.EnableScheduledDownloads;
             document.getElementById('DeleteWatchedScheduledVideos').checked = !!config.DeleteWatchedScheduledVideos;
 
@@ -175,6 +176,8 @@
             config.DownloadThumbnails         = document.getElementById('DownloadThumbnails').checked;
             config.TriggerLibraryScanAfterDownload = document.getElementById('TriggerLibraryScanAfterDownload').checked;
             config.DeleteWatchedManualVideos  = document.getElementById('DeleteWatchedManualVideos').checked;
+            var graceVal = parseInt(document.getElementById('DeleteWatchedGraceDays').value);
+            config.DeleteWatchedGraceDays     = isNaN(graceVal) ? 3 : Math.max(0, graceVal);
             config.EnableScheduledDownloads   = document.getElementById('EnableScheduledDownloads').checked;
             config.DeleteWatchedScheduledVideos = document.getElementById('DeleteWatchedScheduledVideos').checked;
             config.ScheduledEntries           = collectScheduledEntries();
