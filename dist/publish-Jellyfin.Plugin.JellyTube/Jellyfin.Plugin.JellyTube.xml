@@ -588,6 +588,14 @@
             never touch each other's in-progress files.
             </summary>
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.IsStreamFragment(System.String)">
+            <summary>
+            True if the file is a yt-dlp stream-specific fragment like "name.f400.mp4" (audio- or
+            video-only, before merge). These must never be mistaken for the finished video — doing so
+            makes the plugin write metadata and mark a video as downloaded when the merged file failed,
+            leaving a stale download-archive entry that blocks re-downloading.
+            </summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.LibraryOrganizationService">
             <summary>
             Determines the on-disk folder layout for downloaded videos.

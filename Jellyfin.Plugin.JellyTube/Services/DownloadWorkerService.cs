@@ -523,11 +523,25 @@ public class DownloadWorkerService : BackgroundService
 
         return Directory.EnumerateFiles(dir, $"*{videoId}*")
             .Where(f => !f.Contains(".temp.", StringComparison.OrdinalIgnoreCase) &&
-                        !f.EndsWith(".part", StringComparison.OrdinalIgnoreCase))
+                        !f.EndsWith(".part", StringComparison.OrdinalIgnoreCase) &&
+                        !IsStreamFragment(f))
             .FirstOrDefault(f =>
                 f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
                 f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||
                 f.EndsWith(".webm", StringComparison.OrdinalIgnoreCase) ||
                 f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// True if the file is a yt-dlp stream-specific fragment like "name.f400.mp4" (audio- or
+    /// video-only, before merge). These must never be mistaken for the finished video — doing so
+    /// makes the plugin write metadata and mark a video as downloaded when the merged file failed,
+    /// leaving a stale download-archive entry that blocks re-downloading.
+    /// </summary>
+    private static bool IsStreamFragment(string path)
+    {
+        var name = Path.GetFileName(path);
+        var parts = name.Split('.');
+        return parts.Length >= 3 && parts[^2].StartsWith('f') && int.TryParse(parts[^2][1..], out _);
     }
 }
