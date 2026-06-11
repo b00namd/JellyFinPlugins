@@ -52,6 +52,7 @@ public class WatchedVideoCleanupService : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _userDataManager.UserDataSaved += OnUserDataSaved;
+        _libraryManager.ItemRemoved += OnItemRemoved;
 
         // Run startup scan after a short delay to let Jellyfin finish initializing
         _ = Task.Run(async () =>
@@ -67,7 +68,56 @@ public class WatchedVideoCleanupService : IHostedService
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _userDataManager.UserDataSaved -= OnUserDataSaved;
+        _libraryManager.ItemRemoved -= OnItemRemoved;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// When a downloaded JellyTube video is removed from the library — manually by the user or by
+    /// the watched-cleanup — keep it in the download archive and mark it protected, so it is neither
+    /// re-downloaded on the next scheduled run nor pulled back by an archive reconcile. In short:
+    /// "deleted stays deleted".
+    /// </summary>
+    private void OnItemRemoved(object? sender, ItemChangeEventArgs e)
+    {
+        var config = Plugin.Instance?.Configuration;
+        if (config is null)
+            return;
+
+        var filePath = e.Item?.Path;
+        if (string.IsNullOrEmpty(filePath) || !IsVideoFile(filePath))
+            return;
+
+        if (!IsUnderDownloadPath(filePath, config))
+            return;
+
+        // Prefer the YouTube ID from the library item (set from the NFO's <uniqueid type="youtube">);
+        // it survives even when the file and its sidecars are already gone.
+        string? videoId = null;
+        if (e.Item?.ProviderIds is { } providerIds)
+            providerIds.TryGetValue("youtube", out videoId);
+        if (string.IsNullOrWhiteSpace(videoId))
+            videoId = TryExtractVideoId(filePath);
+
+        if (string.IsNullOrWhiteSpace(videoId))
+        {
+            _logger.LogWarning("Removed JellyTube video '{Path}' but could not determine its ID; it may be re-downloaded.", filePath);
+            return;
+        }
+
+        _archive.AddProtected(videoId);
+        _logger.LogInformation("JellyTube video removed ('{Path}'); protected {VideoId} so it is not re-downloaded.", filePath, videoId);
+    }
+
+    private static bool IsUnderDownloadPath(string filePath, Configuration.PluginConfiguration config)
+    {
+        if (!string.IsNullOrWhiteSpace(config.DownloadPath) &&
+            filePath.StartsWith(config.DownloadPath, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return config.ScheduledEntries.Any(entry =>
+            !string.IsNullOrWhiteSpace(entry.DownloadPath) &&
+            filePath.StartsWith(entry.DownloadPath, StringComparison.OrdinalIgnoreCase));
     }
 
     private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e)

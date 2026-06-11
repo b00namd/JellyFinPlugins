@@ -714,6 +714,14 @@
         <member name="M:Jellyfin.Plugin.JellyTube.Services.WatchedVideoCleanupService.StopAsync(System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.WatchedVideoCleanupService.OnItemRemoved(System.Object,MediaBrowser.Controller.Library.ItemChangeEventArgs)">
+            <summary>
+            When a downloaded JellyTube video is removed from the library — manually by the user or by
+            the watched-cleanup — keep it in the download archive and mark it protected, so it is neither
+            re-downloaded on the next scheduled run nor pulled back by an archive reconcile. In short:
+            "deleted stays deleted".
+            </summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.YtDlpService">
             <summary>
             Wraps YoutubeDLSharp to fetch metadata and download videos via yt-dlp.
