@@ -168,9 +168,22 @@ public class YtDlpService
             // (e.g. "<Channel> - Videos - <id>.info.json"); we only need the per-video ones.
             psi.ArgumentList.Add("--no-write-playlist-metafiles");
             psi.ArgumentList.Add("-o");
-            var outputTemplate = config.OrganiseByChannel
-                ? System.IO.Path.Combine(outputDir, "%(channel)s", "%(title)s - %(id)s.%(ext)s")
-                : System.IO.Path.Combine(outputDir, "%(title)s - %(id)s.%(ext)s");
+            string outputTemplate;
+            if (config.OrganiseAsSeries)
+            {
+                // channel = series, "Season <year>" = season, "S<year>E<mmdd>" so Jellyfin recognises
+                // each video as a dated episode (episode/season are also written authoritatively to NFO).
+                outputTemplate = System.IO.Path.Combine(outputDir, "%(channel)s", "Season %(upload_date>%Y)s",
+                    "%(channel)s - S%(upload_date>%Y)sE%(upload_date>%m%d)s - %(title)s - %(id)s.%(ext)s");
+            }
+            else if (config.OrganiseByChannel)
+            {
+                outputTemplate = System.IO.Path.Combine(outputDir, "%(channel)s", "%(title)s - %(id)s.%(ext)s");
+            }
+            else
+            {
+                outputTemplate = System.IO.Path.Combine(outputDir, "%(title)s - %(id)s.%(ext)s");
+            }
             psi.ArgumentList.Add(outputTemplate);
 
             if (!string.IsNullOrWhiteSpace(config.VideoFormat))
@@ -181,6 +194,9 @@ public class YtDlpService
 
             psi.ArgumentList.Add("--merge-output-format");
             psi.ArgumentList.Add(mergeFormat);
+
+            if (config.EmbedChapters)
+                psi.ArgumentList.Add("--embed-chapters");
 
             if (!string.IsNullOrWhiteSpace(config.FfmpegBinaryPath))
             {

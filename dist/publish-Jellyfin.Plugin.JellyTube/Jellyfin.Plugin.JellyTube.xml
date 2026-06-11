@@ -149,6 +149,19 @@
             Gets or sets a value indicating whether to organise videos into channel subfolders.
             </summary>
         </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.OrganiseAsSeries">
+            <summary>
+            Gets or sets a value indicating whether to organise downloads as a TV series per channel
+            (channel = series, "Season &lt;year&gt;" folders, videos as episodes with episode NFOs and a
+            tvshow.nfo). Requires the target Jellyfin library to be of type "Shows". Implies per-channel folders.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.EmbedChapters">
+            <summary>
+            Gets or sets a value indicating whether to embed the video's YouTube chapters into the file
+            (shown as scene/chapter markers in Jellyfin).
+            </summary>
+        </member>
         <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.DownloadSubtitles">
             <summary>
             Gets or sets a value indicating whether to download subtitles.
@@ -678,6 +691,17 @@
         <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.WriteNfoAsync(Jellyfin.Plugin.JellyTube.Models.VideoMetadata,System.String)">
             <summary>
             Writes an NFO file to <paramref name="nfoPath"/> using the provided <paramref name="meta"/>.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.WriteEpisodeNfoAsync(Jellyfin.Plugin.JellyTube.Models.VideoMetadata,System.String)">
+            <summary>
+            Writes an episode NFO (<c>episodedetails</c>) for series-organised downloads. Season is the
+            upload year and episode the upload month/day (MMDD), so episodes sort chronologically.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.EnsureTvShowNfoAsync(System.String,System.String,System.String,System.String)">
+            <summary>
+            Writes a <c>tvshow.nfo</c> for a channel-as-series folder, if one does not already exist.
             </summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.ThumbnailService">

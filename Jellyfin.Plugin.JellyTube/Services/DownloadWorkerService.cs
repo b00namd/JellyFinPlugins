@@ -249,7 +249,8 @@ public class DownloadWorkerService : BackgroundService
         var config = Plugin.Instance!.Configuration;
         string? lastThumbnailUrl = null;
 
-        var searchOption = config.OrganiseByChannel ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+        var organiseInSubfolders = config.OrganiseByChannel || config.OrganiseAsSeries;
+        var searchOption = organiseInSubfolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var infoJsonFiles = Directory.EnumerateFiles(outputDir, "*.info.json", searchOption).ToList();
         foreach (var jsonPath in infoJsonFiles)
         {
@@ -272,7 +273,20 @@ public class DownloadWorkerService : BackgroundService
             if (config.WriteNfoFiles)
             {
                 var nfoPath = LibraryOrganizationService.GetNfoPath(videoFile);
-                await _nfo.WriteNfoAsync(videoMeta, nfoPath);
+                if (config.OrganiseAsSeries)
+                {
+                    await _nfo.WriteEpisodeNfoAsync(videoMeta, nfoPath);
+
+                    // The series folder is the channel folder (parent of the "Season <year>" folder).
+                    var seriesDir = Directory.GetParent(videoDir)?.FullName ?? videoDir;
+                    await _nfo.EnsureTvShowNfoAsync(seriesDir, videoMeta.ChannelName, videoMeta.ChannelId, videoMeta.ThumbnailUrl);
+                    if (config.DownloadThumbnails && !string.IsNullOrEmpty(videoMeta.ThumbnailUrl))
+                        await _thumbs.EnsureChannelPosterAsync(seriesDir, videoMeta.ThumbnailUrl, ct);
+                }
+                else
+                {
+                    await _nfo.WriteNfoAsync(videoMeta, nfoPath);
+                }
             }
 
             if (config.DownloadThumbnails && !string.IsNullOrEmpty(videoMeta.ThumbnailUrl))
@@ -286,7 +300,8 @@ public class DownloadWorkerService : BackgroundService
             RenameToCleanTitle(videoFile, videoMeta.VideoId);
         }
 
-        if (config.DownloadThumbnails && lastThumbnailUrl is not null)
+        // Non-series channel poster (series posters are written per channel folder above).
+        if (!config.OrganiseAsSeries && config.DownloadThumbnails && lastThumbnailUrl is not null)
             await _thumbs.EnsureChannelPosterAsync(outputDir, lastThumbnailUrl, ct);
     }
 

@@ -134,6 +134,8 @@
             document.getElementById('DownloadRetryCount').value         = (config.DownloadRetryCount != null) ? config.DownloadRetryCount : 2;
             document.getElementById('PlaylistScanLimit').value          = (config.PlaylistScanLimit != null) ? config.PlaylistScanLimit : 50;
             document.getElementById('OrganiseByChannel').checked        = !!config.OrganiseByChannel;
+            document.getElementById('OrganiseAsSeries').checked         = !!config.OrganiseAsSeries;
+            document.getElementById('EmbedChapters').checked            = (config.EmbedChapters != null) ? !!config.EmbedChapters : true;
             document.getElementById('ExcludeShorts').checked            = (config.ExcludeShorts != null) ? !!config.ExcludeShorts : true;
             document.getElementById('DownloadSubtitles').checked        = !!config.DownloadSubtitles;
             document.getElementById('SubtitleLanguages').value          = config.SubtitleLanguages || '';
@@ -167,6 +169,8 @@
             var scanVal = parseInt(document.getElementById('PlaylistScanLimit').value);
             config.PlaylistScanLimit          = isNaN(scanVal) ? 50 : Math.max(0, scanVal);
             config.OrganiseByChannel          = document.getElementById('OrganiseByChannel').checked;
+            config.OrganiseAsSeries           = document.getElementById('OrganiseAsSeries').checked;
+            config.EmbedChapters              = document.getElementById('EmbedChapters').checked;
             config.ExcludeShorts              = document.getElementById('ExcludeShorts').checked;
             config.DownloadSubtitles          = document.getElementById('DownloadSubtitles').checked;
             config.SubtitleLanguages          = document.getElementById('SubtitleLanguages').value;

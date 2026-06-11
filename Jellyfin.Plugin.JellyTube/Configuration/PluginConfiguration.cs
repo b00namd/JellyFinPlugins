@@ -45,6 +45,19 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool OrganiseByChannel { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets a value indicating whether to organise downloads as a TV series per channel
+    /// (channel = series, "Season &lt;year&gt;" folders, videos as episodes with episode NFOs and a
+    /// tvshow.nfo). Requires the target Jellyfin library to be of type "Shows". Implies per-channel folders.
+    /// </summary>
+    public bool OrganiseAsSeries { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to embed the video's YouTube chapters into the file
+    /// (shown as scene/chapter markers in Jellyfin).
+    /// </summary>
+    public bool EmbedChapters { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether to download subtitles.
     /// </summary>
     public bool DownloadSubtitles { get; set; } = false;

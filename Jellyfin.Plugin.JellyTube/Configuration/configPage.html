@@ -246,6 +246,22 @@
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
+                                <input id="OrganiseAsSeries" name="OrganiseAsSeries" type="checkbox" is="emby-checkbox" />
+                                <span>Kanäle als Serien darstellen</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Kanal = Serie, „Season &lt;Jahr&gt;"-Ordner, Videos als Episoden (mit Episoden-NFO + tvshow.nfo). <strong>Voraussetzung:</strong> Die Jellyfin-Mediathek für das Download-Verzeichnis muss vom Typ „Serien/Shows" sein.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EmbedChapters" name="EmbedChapters" type="checkbox" is="emby-checkbox" />
+                                <span>YouTube-Kapitel einbetten</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Bettet die Kapitelmarken des Videos ein (in Jellyfin als Szenenmarken zum Springen).</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
                                 <input id="ExcludeShorts" name="ExcludeShorts" type="checkbox" is="emby-checkbox" />
                                 <span>Shorts ausschließen</span>
                             </label>
