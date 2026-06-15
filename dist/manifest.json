@@ -3,12 +3,12 @@
         "owner":  "local",
         "versions":  [
                          {
-                             "changelog":  "Initiale Version",
-                             "version":  "1.0.0.0",
-                             "checksum":  "4bf7c34e33f5715213f5b34dec3c38d5",
-                             "timestamp":  "2026-06-15T08:59:31Z",
+                             "changelog":  "AAC-Ton (m4a) wird jetzt auch bei den 2K- und 4K-Qualitaetsprofilen bevorzugt (Direct-Play).",
+                             "version":  "1.0.1.0",
+                             "checksum":  "092fa0142e7bcc25a4ac356f601bc71e",
+                             "timestamp":  "2026-06-15T09:01:27Z",
                              "targetAbi":  "10.9.0.0",
-                             "sourceUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.0.0.zip"
+                             "sourceUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.1.0.zip"
                          }
                      ],
         "overview":  "Verwendet yt-dlp zum Herunterladen von YouTube-Inhalten und erstellt NFO-Metadaten sowie Vorschaubilder.",
@@ -24,8 +24,8 @@
                          {
                              "changelog":  "Initiale Version",
                              "version":  "1.0.0.0",
-                             "checksum":  "b34c2c66a1624aa9f0a5f9cab9ee804a",
-                             "timestamp":  "2026-06-15T08:59:31Z",
+                             "checksum":  "48c278eaec4798524187938201d0d1a2",
+                             "timestamp":  "2026-06-15T09:01:27Z",
                              "targetAbi":  "10.9.0.0",
                              "sourceUrl":  "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.0.0.0.zip"
                          }

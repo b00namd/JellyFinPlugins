@@ -38,11 +38,13 @@ function Build-Plugin {
         [string]$PluginName,
         [string]$Description,
         [string]$Overview,
-        [string]$Guid
+        [string]$Guid,
+        [string]$PluginVersion = $Version,
+        [string]$Changelog = "Initiale Version"
     )
 
     $publishDir = Join-Path $OutputDir "publish-$AssemblyName"
-    $zipName    = "${AssemblyName}_${Version}.zip"
+    $zipName    = "${AssemblyName}_${PluginVersion}.zip"
     $zipPath    = Join-Path $OutputDir $zipName
 
     Write-Host ""
@@ -72,8 +74,8 @@ function Build-Plugin {
         imageUrl    = "$RepoUrl/$AssemblyName/thumb.png"
         versions    = @(
             @{
-                version    = $Version
-                changelog  = "Initiale Version"
+                version    = $PluginVersion
+                changelog  = $Changelog
                 targetAbi  = "10.9.0.0"
                 sourceUrl  = "$BaseUrl/$zipName"
                 checksum   = $md5
@@ -92,7 +94,9 @@ $manifestEntries += Build-Plugin `
     -PluginName  "JellyTube" `
     -Description "YouTube-Videos und Playlists direkt in die Jellyfin-Mediathek herunterladen." `
     -Overview    "Verwendet yt-dlp zum Herunterladen von YouTube-Inhalten und erstellt NFO-Metadaten sowie Vorschaubilder." `
-    -Guid        "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    -Guid        "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
+    -PluginVersion "1.0.1.0" `
+    -Changelog   "AAC-Ton (m4a) wird jetzt auch bei den 2K- und 4K-Qualitaetsprofilen bevorzugt (Direct-Play)."
 
 # ============================================================
 # Build JellyTubbing
