@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.JellyTube.Helpers;
 using Jellyfin.Plugin.JellyTube.Models;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Hosting;
@@ -146,6 +147,14 @@ public class DownloadWorkerService : BackgroundService
         var maxAttempts = job.IsPlaylist ? 1 : Math.Max(1, 1 + Plugin.Instance!.Configuration.DownloadRetryCount);
         bool success = false;
 
+        // Series mode: automatic downloads always land in "Season 1"; a manually downloaded
+        // playlist becomes its own season.
+        PlaylistSeason? playlistSeason = null;
+        if (job.IsPlaylist && !job.IsScheduled && Plugin.Instance!.Configuration.OrganiseAsSeries && IsPlaylistUrl(job.Url))
+        {
+            playlistSeason = await ResolvePlaylistSeasonAsync(job, outputDir, ct);
+        }
+
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             if (attempt > 1)
@@ -158,7 +167,7 @@ public class DownloadWorkerService : BackgroundService
             }
 
             success = job.IsPlaylist
-                ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath, job.MaxAgeDays, job.IsScheduled)
+                ? await _ytDlp.DownloadPlaylistAsync(job.Url, outputDir, downloadProgress, ct, archivePath, job.MaxAgeDays, job.IsScheduled, playlistSeason)
                 : await _ytDlp.DownloadVideoAsync(job.Url, outputDir, downloadProgress, ct, archivePath);
 
             if (success || ct.IsCancellationRequested)
@@ -192,7 +201,7 @@ public class DownloadWorkerService : BackgroundService
 
         if (job.IsPlaylist)
         {
-            await WritePlaylistMetadataAsync(outputDir, shouldWriteDeleteMarker, ct);
+            await WritePlaylistMetadataAsync(outputDir, shouldWriteDeleteMarker, migrateToSingleSeason: job.IsScheduled, ct);
         }
         else
         {
@@ -246,12 +255,14 @@ public class DownloadWorkerService : BackgroundService
         _libraryManager.QueueLibraryScan();
     }
 
-    private async Task WritePlaylistMetadataAsync(string outputDir, bool writeDeleteMarker, CancellationToken ct)
+    private async Task WritePlaylistMetadataAsync(string outputDir, bool writeDeleteMarker, bool migrateToSingleSeason, CancellationToken ct)
     {
         var config = Plugin.Instance!.Configuration;
         string? lastThumbnailUrl = null;
 
-        if (config.OrganiseAsSeries)
+        // Only automatic downloads use the "<channel>/Season 1" layout, so only they migrate into it
+        // (a manual playlist's target folder may hold playlist seasons that must stay as they are).
+        if (config.OrganiseAsSeries && migrateToSingleSeason)
             MigrateToSingleSeason(outputDir);
 
         var organiseInSubfolders = config.OrganiseByChannel || config.OrganiseAsSeries;
@@ -310,7 +321,10 @@ public class DownloadWorkerService : BackgroundService
             {
                 var nfoPath = LibraryOrganizationService.GetNfoPath(videoFile);
                 if (config.OrganiseAsSeries)
-                    await _nfo.WriteEpisodeNfoAsync(videoMeta, nfoPath);
+                {
+                    var (season, episode) = GetSeasonAndEpisode(videoDir, videoMeta);
+                    await _nfo.WriteEpisodeNfoAsync(videoMeta, nfoPath, season, episode);
+                }
                 else
                     await _nfo.WriteNfoAsync(videoMeta, nfoPath);
             }
@@ -385,6 +399,8 @@ public class DownloadWorkerService : BackgroundService
                 LikeCount       = root.TryGetProperty("like_count", out var lc) && lc.ValueKind == JsonValueKind.Number ? lc.GetInt64() : null,
                 ThumbnailUrl    = Str("thumbnail") ?? string.Empty,
                 WebpageUrl      = Str("webpage_url") ?? string.Empty,
+                PlaylistTitle   = Str("playlist_title"),
+                PlaylistIndex   = root.TryGetProperty("playlist_index", out var pi) && pi.ValueKind == JsonValueKind.Number ? pi.GetInt32() : null,
                 Tags            = root.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array
                     ? tags.EnumerateArray().Select(t => t.GetString() ?? string.Empty).Where(s => s.Length > 0).ToArray()
                     : Array.Empty<string>(),
@@ -532,6 +548,107 @@ public class DownloadWorkerService : BackgroundService
             _logger.LogInformation("Cleaned up {Count} intermediate file(s) in '{Dir}'.", deleted, dir);
     }
 
+    private static bool IsPlaylistUrl(string url)
+        => Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
+           && uri.Query.TrimStart('?').Split('&').Any(p => p.StartsWith("list=", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Determines the season folder for a manually downloaded playlist. The series folder is the
+    /// job's own target folder when one was given, otherwise the playlist owner's channel folder.
+    /// A playlist downloaded before gets its existing season back (matched via the playlist ID in
+    /// <c>season.nfo</c>); a new one gets the next free season number. Returns null (→ regular
+    /// "Season 1" layout) if the playlist info can't be fetched.
+    /// </summary>
+    private async Task<PlaylistSeason?> ResolvePlaylistSeasonAsync(DownloadJob job, string outputDir, CancellationToken ct)
+    {
+        var info = await _ytDlp.FetchPlaylistInfoAsync(job.Url, ct);
+        if (info is null)
+        {
+            _logger.LogWarning("Job {Id}: could not fetch playlist info; using the regular \"Season 1\" layout.", job.Id);
+            return null;
+        }
+
+        var seriesDir = !string.IsNullOrWhiteSpace(job.OverrideDownloadPath)
+            ? outputDir
+            : Path.Combine(outputDir, PathSanitizer.Sanitize(string.IsNullOrWhiteSpace(info.Channel) ? info.Title : info.Channel));
+        Directory.CreateDirectory(seriesDir);
+
+        int? number = null;
+        var maxNumber = 0;
+        foreach (var dir in Directory.EnumerateDirectories(seriesDir, "Season *"))
+        {
+            var n = ParseSeasonFolderNumber(dir);
+            if (n is null)
+                continue;
+
+            maxNumber = Math.Max(maxNumber, n.Value);
+            if (string.Equals(NfoWriterService.ReadSeasonPlaylistId(dir), info.Id, StringComparison.Ordinal))
+                number = n;
+        }
+
+        number ??= maxNumber + 1;
+        var seasonDir = Path.Combine(seriesDir, $"Season {number}");
+        Directory.CreateDirectory(seasonDir);
+        await _nfo.WriteSeasonNfoAsync(seasonDir, number.Value, info.Title, info.Id);
+        SeedSeasonArchive(seasonDir, ct);
+
+        _logger.LogInformation("Job {Id}: playlist \"{Title}\" → season {Season} in '{SeriesDir}'.", job.Id, info.Title, number, seriesDir);
+        return new PlaylistSeason(seasonDir, number.Value);
+    }
+
+    /// <summary>
+    /// Adds every video already in the season folder (per its .info.json) to the season's download
+    /// archive, so episodes that were downloaded before the archive existed aren't fetched again.
+    /// </summary>
+    private void SeedSeasonArchive(string seasonDir, CancellationToken ct)
+    {
+        var archivePath = Path.Combine(seasonDir, PlaylistSeason.ArchiveFileName);
+        try
+        {
+            var known = File.Exists(archivePath)
+                ? new HashSet<string>(File.ReadAllLines(archivePath).Select(l => l.Trim()), StringComparer.Ordinal)
+                : new HashSet<string>(StringComparer.Ordinal);
+
+            var missing = new List<string>();
+            foreach (var json in Directory.EnumerateFiles(seasonDir, "*.info.json"))
+            {
+                ct.ThrowIfCancellationRequested();
+                using var doc = JsonDocument.Parse(File.ReadAllText(json));
+                if (doc.RootElement.TryGetProperty("id", out var idEl) && idEl.GetString() is { Length: > 0 } id
+                    && known.Add($"youtube {id}"))
+                    missing.Add($"youtube {id}");
+            }
+
+            if (missing.Count > 0)
+                File.AppendAllLines(archivePath, missing);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not seed season archive '{Path}'.", archivePath);
+        }
+    }
+
+    /// <summary>
+    /// Season = number of the "Season N" folder (1 otherwise). Episode = position in the playlist for
+    /// playlist seasons (those with a <c>season.nfo</c>), otherwise the upload date as YYYYMMDD.
+    /// </summary>
+    private static (int Season, int Episode) GetSeasonAndEpisode(string videoDir, VideoMetadata meta)
+    {
+        var season = ParseSeasonFolderNumber(videoDir) ?? 1;
+        if (NfoWriterService.ReadSeasonPlaylistId(videoDir) is not null && meta.PlaylistIndex is int index)
+            return (season, index);
+
+        var episode = meta.UploadDate is { } d ? (d.Year * 10000) + (d.Month * 100) + d.Day : 0;
+        return (season, episode);
+    }
+
+    /// <summary>Parses "Season N" folder names; year folders (4 digits) of older versions don't count.</summary>
+    private static int? ParseSeasonFolderNumber(string dir)
+    {
+        var m = Regex.Match(Path.GetFileName(dir), @"^Season (\d{1,3})$");
+        return m.Success ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : null;
+    }
+
     /// <summary>
     /// Brings existing series folders into the single-season layout: episodes lying loose in the
     /// channel folder (downloaded with plain per-channel folders) and the per-year "Season &lt;yyyy&gt;"
@@ -550,7 +667,20 @@ public class DownloadWorkerService : BackgroundService
             var targetDir = Path.Combine(seriesDir, "Season 1");
             try
             {
-                var looseFiles = Directory.EnumerateFiles(seriesDir).Where(f => !IsSeriesLevelFile(f)).ToList();
+                // Only files belonging to a JellyTube download (same stem as an .info.json) — never
+                // foreign media that happens to lie in the same folder.
+                var stems = Directory.EnumerateFiles(seriesDir, "*.info.json")
+                    .Select(f => Path.GetFileName(f)[..^".info.json".Length])
+                    .ToList();
+                var looseFiles = Directory.EnumerateFiles(seriesDir)
+                    .Where(f => !IsSeriesLevelFile(f))
+                    .Where(f =>
+                    {
+                        var name = Path.GetFileName(f);
+                        return stems.Any(s => name.StartsWith(s + ".", StringComparison.Ordinal)
+                                              || name.StartsWith(s + "-thumb.", StringComparison.Ordinal));
+                    })
+                    .ToList();
                 if (looseFiles.Count > 0)
                 {
                     Directory.CreateDirectory(targetDir);

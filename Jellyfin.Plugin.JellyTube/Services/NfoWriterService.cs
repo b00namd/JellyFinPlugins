@@ -86,16 +86,12 @@ public class NfoWriterService
     }
 
     /// <summary>
-    /// Writes an episode NFO (<c>episodedetails</c>) for series-organised downloads. All videos go
-    /// into season 1; the episode number is the upload date (YYYYMMDD), so episodes sort chronologically.
+    /// Writes an episode NFO (<c>episodedetails</c>) for series-organised downloads.
     /// </summary>
-    public async Task WriteEpisodeNfoAsync(VideoMetadata meta, string nfoPath)
+    public async Task WriteEpisodeNfoAsync(VideoMetadata meta, string nfoPath, int season, int episode)
     {
         try
         {
-            const int season = 1;
-            var episode = meta.UploadDate is { } d ? (d.Year * 10000) + (d.Month * 100) + d.Day : 0;
-
             var root = new XElement("episodedetails",
                 new XElement("title", meta.Title),
                 new XElement("showtitle", meta.ChannelName),
@@ -163,6 +159,57 @@ public class NfoWriterService
             _logger.LogError(ex, "Failed to write tvshow.nfo in {Dir}", seriesDir);
         }
     }
+
+    /// <summary>
+    /// Writes a <c>season.nfo</c> for a playlist season (title = playlist title). The playlist ID is
+    /// stored as <c>uniqueid type="youtube-playlist"</c> so later downloads of the same playlist
+    /// find their season again.
+    /// </summary>
+    public async Task WriteSeasonNfoAsync(string seasonDir, int seasonNumber, string title, string playlistId)
+    {
+        var nfoPath = Path.Combine(seasonDir, "season.nfo");
+        try
+        {
+            var root = new XElement("season",
+                new XElement("title", title),
+                new XElement("seasonnumber", seasonNumber.ToString()),
+                new XElement("uniqueid",
+                    new XAttribute("type", PlaylistIdType),
+                    playlistId));
+
+            await WriteDocumentAsync(new XDocument(root), nfoPath).ConfigureAwait(false);
+            _logger.LogInformation("season.nfo written to {Path}", nfoPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write season.nfo to {Path}", nfoPath);
+        }
+    }
+
+    /// <summary>
+    /// Returns the YouTube playlist ID stored in a season folder's <c>season.nfo</c>, or null if the
+    /// folder is not a playlist season.
+    /// </summary>
+    public static string? ReadSeasonPlaylistId(string seasonDir)
+    {
+        var nfoPath = Path.Combine(seasonDir, "season.nfo");
+        if (!File.Exists(nfoPath))
+            return null;
+
+        try
+        {
+            return XDocument.Load(nfoPath).Root?
+                .Elements("uniqueid")
+                .FirstOrDefault(e => string.Equals((string?)e.Attribute("type"), PlaylistIdType, StringComparison.OrdinalIgnoreCase))?
+                .Value.Trim();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private const string PlaylistIdType = "youtube-playlist";
 
     private static async Task WriteDocumentAsync(XDocument doc, string nfoPath)
     {

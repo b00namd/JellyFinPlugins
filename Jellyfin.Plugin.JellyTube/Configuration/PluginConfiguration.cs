@@ -46,8 +46,8 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Gets or sets a value indicating whether to organise downloads as a TV series per channel
-    /// (channel = series, a single "Season 1" folder, videos as episodes with episode NFOs and a
-    /// tvshow.nfo). Requires the target Jellyfin library to be of type "Shows". Implies per-channel folders.
+    /// (channel = series; automatic downloads go to "Season 1", a manually downloaded playlist
+    /// becomes its own season; videos as episodes with episode NFOs and a tvshow.nfo). Requires the target Jellyfin library to be of type "Shows". Implies per-channel folders.
     /// </summary>
     public bool OrganiseAsSeries { get; set; } = false;
 

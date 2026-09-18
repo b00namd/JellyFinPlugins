@@ -135,7 +135,8 @@ public class YtDlpService
         CancellationToken ct,
         string? archivePath = null,
         int maxAgeDays = 0,
-        bool isScheduled = false)
+        bool isScheduled = false,
+        PlaylistSeason? playlistSeason = null)
     {
         var config = Plugin.Instance!.Configuration;
         var binary = ResolveYtDlpBinary();
@@ -170,7 +171,14 @@ public class YtDlpService
             psi.ArgumentList.Add("--no-write-playlist-metafiles");
             psi.ArgumentList.Add("-o");
             string outputTemplate;
-            if (config.OrganiseAsSeries)
+            if (config.OrganiseAsSeries && playlistSeason is not null)
+            {
+                // Manual playlist: the playlist is its own season, episodes numbered by playlist
+                // position. '%' in the folder path must be escaped for the yt-dlp template.
+                outputTemplate = System.IO.Path.Combine(playlistSeason.Directory.Replace("%", "%%"),
+                    $"S{playlistSeason.Number:00}E%(playlist_index)03d - %(title)s - %(id)s.%(ext)s");
+            }
+            else if (config.OrganiseAsSeries)
             {
                 // channel = series, everything in a single "Season 1", "S01E<yyyymmdd>" so Jellyfin
                 // recognises each video as a dated episode (episode/season are also written
@@ -237,8 +245,9 @@ public class YtDlpService
             // metadata for the channel's ENTIRE back-catalogue on every run. --playlist-end caps it
             // to the most-recent N entries, and --lazy-playlist streams them instead of buffering
             // the whole list first.
+            // A manual playlist season is downloaded completely, so the cap doesn't apply there.
             psi.ArgumentList.Add("--lazy-playlist");
-            if (config.PlaylistScanLimit > 0)
+            if (config.PlaylistScanLimit > 0 && playlistSeason is null)
             {
                 psi.ArgumentList.Add("--playlist-end");
                 psi.ArgumentList.Add(config.PlaylistScanLimit.ToString());
@@ -265,6 +274,13 @@ public class YtDlpService
                 // fetched again — it just no longer halts the scan.
                 psi.ArgumentList.Add("--download-archive");
                 psi.ArgumentList.Add(archivePath);
+            }
+            else if (playlistSeason is not null)
+            {
+                // Per-season archive: re-downloading the playlist later only fetches new episodes
+                // (the files are renamed after download, so --no-overwrites alone can't tell).
+                psi.ArgumentList.Add("--download-archive");
+                psi.ArgumentList.Add(System.IO.Path.Combine(playlistSeason.Directory, PlaylistSeason.ArchiveFileName));
             }
 
             psi.ArgumentList.Add("--");
@@ -329,6 +345,63 @@ public class YtDlpService
         {
             _logger.LogError(ex, "Exception while downloading playlist {Url}", url);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches a playlist's ID, title and owning channel without listing its videos. Returns null
+    /// on failure.
+    /// </summary>
+    public async Task<PlaylistInfo?> FetchPlaylistInfoAsync(string playlistUrl, CancellationToken ct)
+    {
+        try
+        {
+            var config = Plugin.Instance!.Configuration;
+            var psi = new ProcessStartInfo
+            {
+                FileName               = ResolveYtDlpBinary(),
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            };
+            psi.ArgumentList.Add("--playlist-items");
+            psi.ArgumentList.Add("0"); // playlist metadata only, don't enumerate videos
+            psi.ArgumentList.Add("-J");
+            if (!string.IsNullOrWhiteSpace(config.CookiesFilePath))
+            {
+                psi.ArgumentList.Add("--cookies");
+                psi.ArgumentList.Add(config.CookiesFilePath);
+            }
+            psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add(playlistUrl);
+
+            using var proc = new Process { StartInfo = psi };
+            proc.Start();
+            var stderrTask = proc.StandardError.ReadToEndAsync(ct);
+            var json = await proc.StandardOutput.ReadToEndAsync(ct);
+            await stderrTask;
+            await proc.WaitForExitAsync(ct);
+
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            string? Str(string key) =>
+                root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            var id = Str("id");
+            var title = Str("title");
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(title))
+                return null;
+
+            return new PlaylistInfo(id, title, Str("channel") ?? Str("uploader"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not fetch playlist info for {Url}", playlistUrl);
+            return null;
         }
     }
 
