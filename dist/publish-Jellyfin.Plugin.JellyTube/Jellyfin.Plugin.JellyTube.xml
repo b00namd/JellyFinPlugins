@@ -152,8 +152,8 @@
         <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.OrganiseAsSeries">
             <summary>
             Gets or sets a value indicating whether to organise downloads as a TV series per channel
-            (channel = series, "Season &lt;year&gt;" folders, videos as episodes with episode NFOs and a
-            tvshow.nfo). Requires the target Jellyfin library to be of type "Shows". Implies per-channel folders.
+            (channel = series; automatic downloads go to "Season 1", a manually downloaded playlist
+            becomes its own season; videos as episodes with episode NFOs and a tvshow.nfo). Requires the target Jellyfin library to be of type "Shows". Implies per-channel folders.
             </summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.EmbedChapters">
@@ -228,9 +228,9 @@
         </member>
         <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.DeleteWatchedGraceDays">
             <summary>
-            Gets or sets the number of days to wait after a video is manually marked watched before it is
-            deleted (grace period). 0 = delete on the next cleanup run. Only manual "mark as watched"
-            triggers deletion — Jellyfin auto-marking a video played does not.
+            Gets or sets the number of days to wait after a video is marked watched before it is
+            deleted (grace period). 0 = delete on the next cleanup run. Both a manual "mark as watched"
+            and Jellyfin auto-marking a video played (watched past its ~90% threshold) start the timer.
             </summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTube.Configuration.PluginConfiguration.DefaultAudioLanguage">
@@ -357,6 +357,58 @@
         </member>
         <member name="F:Jellyfin.Plugin.JellyTube.Models.DownloadJobStatus.Cancelled">
             <summary>Download was cancelled by the user.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTube.Models.PlaylistSeason">
+            <summary>
+            Target season for a manually downloaded playlist in series mode: every playlist becomes its own
+            "Season N" folder inside the series folder.
+            </summary>
+            <param name="Directory">Absolute path of the "Season N" folder.</param>
+            <param name="Number">The season number.</param>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Models.PlaylistSeason.#ctor(System.String,System.Int32)">
+            <summary>
+            Target season for a manually downloaded playlist in series mode: every playlist becomes its own
+            "Season N" folder inside the series folder.
+            </summary>
+            <param name="Directory">Absolute path of the "Season N" folder.</param>
+            <param name="Number">The season number.</param>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Models.PlaylistSeason.Directory">
+            <summary>Absolute path of the "Season N" folder.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Models.PlaylistSeason.Number">
+            <summary>The season number.</summary>
+        </member>
+        <member name="F:Jellyfin.Plugin.JellyTube.Models.PlaylistSeason.ArchiveFileName">
+            <summary>
+            Name of the per-season yt-dlp download archive (a dotfile, so Jellyfin ignores it).
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTube.Models.PlaylistInfo">
+            <summary>
+            Basic playlist information fetched before a download.
+            </summary>
+            <param name="Id">YouTube playlist ID.</param>
+            <param name="Title">Playlist title.</param>
+            <param name="Channel">Name of the channel that owns the playlist, if known.</param>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Models.PlaylistInfo.#ctor(System.String,System.String,System.String)">
+            <summary>
+            Basic playlist information fetched before a download.
+            </summary>
+            <param name="Id">YouTube playlist ID.</param>
+            <param name="Title">Playlist title.</param>
+            <param name="Channel">Name of the channel that owns the playlist, if known.</param>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Models.PlaylistInfo.Id">
+            <summary>YouTube playlist ID.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Models.PlaylistInfo.Title">
+            <summary>Playlist title.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTube.Models.PlaylistInfo.Channel">
+            <summary>Name of the channel that owns the playlist, if known.</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Models.ScheduledPlaylistEntry">
             <summary>
@@ -647,6 +699,43 @@
             never touch each other's in-progress files.
             </summary>
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.ResolvePlaylistSeasonAsync(Jellyfin.Plugin.JellyTube.Models.DownloadJob,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Determines the season folder for a manually downloaded playlist. The series folder is the
+            job's own target folder when one was given, otherwise the playlist owner's channel folder.
+            A playlist downloaded before gets its existing season back (matched via the playlist ID in
+            <c>season.nfo</c>); a new one gets the next free season number. Returns null (→ regular
+            "Season 1" layout) if the playlist info can't be fetched.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.SeedSeasonArchive(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Adds every video already in the season folder (per its .info.json) to the season's download
+            archive, so episodes that were downloaded before the archive existed aren't fetched again.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.GetSeasonAndEpisode(System.String,Jellyfin.Plugin.JellyTube.Models.VideoMetadata)">
+            <summary>
+            Season = number of the "Season N" folder (1 otherwise). Episode = position in the playlist for
+            playlist seasons (those with a <c>season.nfo</c>), otherwise the upload date as YYYYMMDD.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.ParseSeasonFolderNumber(System.String)">
+            <summary>Parses "Season N" folder names; year folders (4 digits) of older versions don't count.</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.MigrateToSingleSeason(System.String)">
+            <summary>
+            Brings existing series folders into the single-season layout: episodes lying loose in the
+            channel folder (downloaded with plain per-channel folders) and the per-year "Season &lt;yyyy&gt;"
+            folders of older versions are moved into "Season 1" ("S&lt;yyyy&gt;E&lt;mmdd&gt;" names become
+            "S01E&lt;yyyymmdd&gt;"); emptied year folders are removed. Series-level files (tvshow.nfo,
+            artwork) stay in the channel folder. The episode NFOs are rewritten with season 1 by the
+            regular metadata pass afterwards.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.IsSeriesLevelFile(System.String)">
+            <summary>True for files that belong to the series folder itself rather than an episode.</summary>
+        </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.DownloadWorkerService.IsStreamFragment(System.String)">
             <summary>
             True if the file is a yt-dlp stream-specific fragment like "name.f400.mp4" (audio- or
@@ -699,15 +788,27 @@
             Writes an NFO file to <paramref name="nfoPath"/> using the provided <paramref name="meta"/>.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.WriteEpisodeNfoAsync(Jellyfin.Plugin.JellyTube.Models.VideoMetadata,System.String)">
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.WriteEpisodeNfoAsync(Jellyfin.Plugin.JellyTube.Models.VideoMetadata,System.String,System.Int32,System.Int32)">
             <summary>
-            Writes an episode NFO (<c>episodedetails</c>) for series-organised downloads. Season is the
-            upload year and episode the upload month/day (MMDD), so episodes sort chronologically.
+            Writes an episode NFO (<c>episodedetails</c>) for series-organised downloads.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.EnsureTvShowNfoAsync(System.String,System.String,System.String,System.String)">
             <summary>
             Writes a <c>tvshow.nfo</c> for a channel-as-series folder, if one does not already exist.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.WriteSeasonNfoAsync(System.String,System.Int32,System.String,System.String)">
+            <summary>
+            Writes a <c>season.nfo</c> for a playlist season (title = playlist title). The playlist ID is
+            stored as <c>uniqueid type="youtube-playlist"</c> so later downloads of the same playlist
+            find their season again.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.ReadSeasonPlaylistId(System.String)">
+            <summary>
+            Returns the YouTube playlist ID stored in a season folder's <c>season.nfo</c>, or null if the
+            folder is not a playlist season.
             </summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.ThumbnailService">
@@ -804,9 +905,15 @@
             Downloads a single video to the specified output directory.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.DownloadPlaylistAsync(System.String,System.String,System.IProgress{YoutubeDLSharp.DownloadProgress},System.Threading.CancellationToken,System.String,System.Int32,System.Boolean)">
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.DownloadPlaylistAsync(System.String,System.String,System.IProgress{YoutubeDLSharp.DownloadProgress},System.Threading.CancellationToken,System.String,System.Int32,System.Boolean,Jellyfin.Plugin.JellyTube.Models.PlaylistSeason)">
             <summary>
             Downloads all videos in a playlist to the specified output directory.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.FetchPlaylistInfoAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Fetches a playlist's ID, title and owning channel without listing its videos. Returns null
+            on failure.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTube.Services.YtDlpService.FetchChannelArtworkAsync(System.String,System.Threading.CancellationToken)">

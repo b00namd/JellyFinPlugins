@@ -122,9 +122,9 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool DeleteWatchedManualVideos { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets the number of days to wait after a video is manually marked watched before it is
-    /// deleted (grace period). 0 = delete on the next cleanup run. Only manual "mark as watched"
-    /// triggers deletion — Jellyfin auto-marking a video played does not.
+    /// Gets or sets the number of days to wait after a video is marked watched before it is
+    /// deleted (grace period). 0 = delete on the next cleanup run. Both a manual "mark as watched"
+    /// and Jellyfin auto-marking a video played (watched past its ~90% threshold) start the timer.
     /// </summary>
     public int DeleteWatchedGraceDays { get; set; } = 3;
 

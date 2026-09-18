@@ -135,9 +135,10 @@ public class WatchedVideoCleanupService : IHostedService
         if (config is null)
             return;
 
-        // Manual only: act solely when the user explicitly toggles the watched state, NOT when
-        // Jellyfin auto-marks a video played after it passes its playback threshold (~90%).
-        if (e.SaveReason != UserDataSaveReason.TogglePlayed)
+        // Act when the user explicitly toggles the watched state (TogglePlayed) OR when Jellyfin
+        // auto-marks a video played after it passes its playback threshold (~90%, PlaybackFinished).
+        var isManualToggle = e.SaveReason == UserDataSaveReason.TogglePlayed;
+        if (!isManualToggle && e.SaveReason != UserDataSaveReason.PlaybackFinished)
             return;
 
         var filePath = e.Item?.Path;
@@ -146,16 +147,22 @@ public class WatchedVideoCleanupService : IHostedService
 
         var pendingPath = Path.ChangeExtension(filePath, ".delete-pending");
 
-        // Un-marked as watched again → cancel any queued deletion.
+        // Not (or no longer) played. Only an explicit manual un-mark cancels a queued deletion;
+        // a PlaybackFinished that stopped short of the threshold simply does nothing.
         if (!e.UserData.Played)
         {
-            if (File.Exists(pendingPath))
+            if (isManualToggle && File.Exists(pendingPath))
             {
                 TryDelete(pendingPath);
                 _logger.LogInformation("'{Path}' marked unwatched again; cancelled queued deletion.", filePath);
             }
             return;
         }
+
+        // Already queued (e.g. PlaybackFinished firing after an earlier watch, or a manual toggle
+        // after auto-played) → keep the original grace timer instead of resetting it.
+        if (File.Exists(pendingPath))
+            return;
 
         // Marked watched. Only queue if this video is a delete-watched candidate.
         if (!IsDeleteWatchedCandidate(filePath, config))
