@@ -86,15 +86,15 @@ public class NfoWriterService
     }
 
     /// <summary>
-    /// Writes an episode NFO (<c>episodedetails</c>) for series-organised downloads. Season is the
-    /// upload year and episode the upload month/day (MMDD), so episodes sort chronologically.
+    /// Writes an episode NFO (<c>episodedetails</c>) for series-organised downloads. All videos go
+    /// into season 1; the episode number is the upload date (YYYYMMDD), so episodes sort chronologically.
     /// </summary>
     public async Task WriteEpisodeNfoAsync(VideoMetadata meta, string nfoPath)
     {
         try
         {
-            var season = meta.UploadDate?.Year ?? 0;
-            var episode = meta.UploadDate is { } d ? (d.Month * 100) + d.Day : 0;
+            const int season = 1;
+            var episode = meta.UploadDate is { } d ? (d.Year * 10000) + (d.Month * 100) + d.Day : 0;
 
             var root = new XElement("episodedetails",
                 new XElement("title", meta.Title),

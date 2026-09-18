@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTube.Models;
@@ -250,6 +251,9 @@ public class DownloadWorkerService : BackgroundService
         var config = Plugin.Instance!.Configuration;
         string? lastThumbnailUrl = null;
 
+        if (config.OrganiseAsSeries)
+            MigrateToSingleSeason(outputDir);
+
         var organiseInSubfolders = config.OrganiseByChannel || config.OrganiseAsSeries;
         var searchOption = organiseInSubfolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var infoJsonFiles = Directory.EnumerateFiles(outputDir, "*.info.json", searchOption).ToList();
@@ -284,11 +288,18 @@ public class DownloadWorkerService : BackgroundService
                 }
             }
 
+            // Fresh downloads still carry the id in their name. In series mode, also pick up videos
+            // already renamed to a clean title (same stem as their info.json) so their episode NFO
+            // gets rewritten, e.g. after being migrated into "Season 1".
             var videoFile = LocateDownloadedFile(videoDir, videoMeta.VideoId);
+            var isFreshDownload = videoFile is not null;
+            if (videoFile is null && config.OrganiseAsSeries)
+                videoFile = LocateVideoByInfoJsonStem(jsonPath);
             if (videoFile is null)
                 continue;
 
-            if (writeDeleteMarker)
+            // Only fresh downloads get a marker — never retro-mark videos that intentionally have none.
+            if (writeDeleteMarker && isFreshDownload)
             {
                 var markerPath = Path.ChangeExtension(videoFile, ".delete-watched");
                 try { await File.WriteAllTextAsync(markerPath, videoMeta.VideoId, ct); }
@@ -437,15 +448,17 @@ public class DownloadWorkerService : BackgroundService
         // job actually wrote to (something modified since it started), so we never reach into a
         // channel another concurrent job is still downloading. Single-video and flat-playlist jobs
         // already point at one specific folder, so cleaning it directly (non-recursive) is safe.
-        if (job.IsPlaylist && config.OrganiseByChannel && Directory.Exists(outputDir))
+        // Series mode nests the files one level deeper ("<channel>/Season 1"), so look recursively there.
+        if (job.IsPlaylist && (config.OrganiseByChannel || config.OrganiseAsSeries) && Directory.Exists(outputDir))
         {
             var since = job.StartedAt ?? DateTime.MinValue;
+            var subdirSearch = config.OrganiseAsSeries ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
             foreach (var subdir in Directory.EnumerateDirectories(outputDir))
             {
                 try
                 {
-                    if (Directory.EnumerateFiles(subdir).Any(f => File.GetLastWriteTimeUtc(f) >= since))
-                        CleanupIntermediateFiles(subdir, recursive: false);
+                    if (Directory.EnumerateFiles(subdir, "*", subdirSearch).Any(f => File.GetLastWriteTimeUtc(f) >= since))
+                        CleanupIntermediateFiles(subdir, recursive: config.OrganiseAsSeries);
                 }
                 catch (Exception ex)
                 {
@@ -519,6 +532,79 @@ public class DownloadWorkerService : BackgroundService
             _logger.LogInformation("Cleaned up {Count} intermediate file(s) in '{Dir}'.", deleted, dir);
     }
 
+    /// <summary>
+    /// Brings existing series folders into the single-season layout: episodes lying loose in the
+    /// channel folder (downloaded with plain per-channel folders) and the per-year "Season &lt;yyyy&gt;"
+    /// folders of older versions are moved into "Season 1" ("S&lt;yyyy&gt;E&lt;mmdd&gt;" names become
+    /// "S01E&lt;yyyymmdd&gt;"); emptied year folders are removed. Series-level files (tvshow.nfo,
+    /// artwork) stay in the channel folder. The episode NFOs are rewritten with season 1 by the
+    /// regular metadata pass afterwards.
+    /// </summary>
+    private void MigrateToSingleSeason(string outputDir)
+    {
+        if (!Directory.Exists(outputDir))
+            return;
+
+        foreach (var seriesDir in Directory.EnumerateDirectories(outputDir).ToList())
+        {
+            var targetDir = Path.Combine(seriesDir, "Season 1");
+            try
+            {
+                var looseFiles = Directory.EnumerateFiles(seriesDir).Where(f => !IsSeriesLevelFile(f)).ToList();
+                if (looseFiles.Count > 0)
+                {
+                    Directory.CreateDirectory(targetDir);
+                    MoveIntoSeason(looseFiles, targetDir);
+                    _logger.LogInformation("Moved {Count} loose file(s) of '{SeriesDir}' into '{TargetDir}'.", looseFiles.Count, seriesDir, targetDir);
+                }
+
+                foreach (var seasonDir in Directory.EnumerateDirectories(seriesDir, "Season *").ToList())
+                {
+                    if (!Regex.IsMatch(Path.GetFileName(seasonDir), @"^Season \d{4}$"))
+                        continue;
+
+                    Directory.CreateDirectory(targetDir);
+                    MoveIntoSeason(Directory.EnumerateFiles(seasonDir).ToList(), targetDir);
+                    if (!Directory.EnumerateFileSystemEntries(seasonDir).Any())
+                        Directory.Delete(seasonDir);
+
+                    _logger.LogInformation("Migrated '{SeasonDir}' into '{TargetDir}'.", seasonDir, targetDir);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not migrate '{SeriesDir}' to a single season.", seriesDir);
+            }
+        }
+    }
+
+    private void MoveIntoSeason(IEnumerable<string> files, string targetDir)
+    {
+        foreach (var file in files)
+        {
+            var newName = Regex.Replace(Path.GetFileName(file), @"S(\d{4})E(\d{4})", "S01E$1$2");
+            var newPath = Path.Combine(targetDir, newName);
+            if (File.Exists(newPath))
+            {
+                _logger.LogWarning("Season migration: '{Path}' already exists, leaving '{File}' in place.", newPath, file);
+                continue;
+            }
+
+            File.Move(file, newPath);
+        }
+    }
+
+    /// <summary>True for files that belong to the series folder itself rather than an episode.</summary>
+    private static bool IsSeriesLevelFile(string path)
+    {
+        var name = Path.GetFileName(path);
+        if (name.Equals("tvshow.nfo", StringComparison.OrdinalIgnoreCase) || name.StartsWith('.'))
+            return true;
+
+        var stem = Path.GetFileNameWithoutExtension(name).ToLowerInvariant();
+        return stem is "poster" or "backdrop" or "banner" or "fanart" or "folder" or "logo" or "clearlogo" or "landscape" or "thumb";
+    }
+
     private string? RenameToCleanTitle(string videoFile, string videoId)
     {
         var dir = Path.GetDirectoryName(videoFile);
@@ -564,6 +650,18 @@ public class DownloadWorkerService : BackgroundService
             _logger.LogWarning(ex, "Could not rename '{Path}' to clean title.", videoFile);
             return null;
         }
+    }
+
+    private static string? LocateVideoByInfoJsonStem(string infoJsonPath)
+    {
+        var dir = Path.GetDirectoryName(infoJsonPath);
+        if (dir is null)
+            return null;
+
+        var stem = Path.GetFileName(infoJsonPath)[..^".info.json".Length];
+        return new[] { ".mp4", ".mkv", ".webm", ".avi" }
+            .Select(ext => Path.Combine(dir, stem + ext))
+            .FirstOrDefault(File.Exists);
     }
 
     private static string? LocateDownloadedFile(string dir, string videoId)

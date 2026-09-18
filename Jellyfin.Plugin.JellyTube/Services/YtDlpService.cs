@@ -172,10 +172,11 @@ public class YtDlpService
             string outputTemplate;
             if (config.OrganiseAsSeries)
             {
-                // channel = series, "Season <year>" = season, "S<year>E<mmdd>" so Jellyfin recognises
-                // each video as a dated episode (episode/season are also written authoritatively to NFO).
-                outputTemplate = System.IO.Path.Combine(outputDir, "%(channel)s", "Season %(upload_date>%Y)s",
-                    "%(channel)s - S%(upload_date>%Y)sE%(upload_date>%m%d)s - %(title)s - %(id)s.%(ext)s");
+                // channel = series, everything in a single "Season 1", "S01E<yyyymmdd>" so Jellyfin
+                // recognises each video as a dated episode (episode/season are also written
+                // authoritatively to NFO).
+                outputTemplate = System.IO.Path.Combine(outputDir, "%(channel)s", "Season 1",
+                    "%(channel)s - S01E%(upload_date)s - %(title)s - %(id)s.%(ext)s");
             }
             else if (config.OrganiseByChannel)
             {
