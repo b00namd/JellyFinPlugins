@@ -398,7 +398,12 @@ public class WatchedVideoCleanupService : IHostedService
 
         TryDelete(videoPath);
 
-        foreach (var sidecar in Directory.EnumerateFiles(dir, $"{baseName}.*"))
+        // "<name>.*" covers .nfo/.info.json/subtitles/markers; the thumbnail is "<name>-thumb.jpg".
+        var sidecars = Directory.EnumerateFiles(dir, $"{baseName}.*")
+            .Concat(Directory.EnumerateFiles(dir, $"{baseName}-thumb.*"))
+            .ToList();
+
+        foreach (var sidecar in sidecars)
         {
             if (!string.Equals(sidecar, videoPath, StringComparison.OrdinalIgnoreCase))
                 TryDelete(sidecar);

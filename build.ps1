@@ -95,8 +95,8 @@ $manifestEntries += Build-Plugin `
     -Description "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan." `
     -Overview    "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen." `
     -Guid        "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-    -PluginVersion "1.0.3.0" `
-    -Changelog   "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11 (Tools-Check, Warteschlange, Downloads). Tools-Check erkennt das vom Plugin verwaltete yt-dlp. Serien-Modus: automatische Downloads in einer Staffel 'Season 1', manuelle Playlists als eigene Staffel. Automatisch als gesehen markierte Videos starten ebenfalls den Loesch-Timer."
+    -PluginVersion "1.0.4.0" `
+    -Changelog   "NFO-Dateien werden nur noch geschrieben, wenn sich ihr Inhalt aendert (vorher bei jedem Durchlauf neu). Beim Loeschen gesehener Videos wird jetzt auch das Vorschaubild entfernt."
 
 # ============================================================
 # Build JellyTubbing
@@ -107,7 +107,9 @@ $manifestEntries += Build-Plugin `
     -PluginName  "JellyTubbing" `
     -Description "YouTube-Videos direkt in Jellyfin streamen - via Invidious mit yt-dlp als Fallback." `
     -Overview    "Nutzt Invidious als primaere Quelle fuer YouTube-Streams. yt-dlp dient als Fallback." `
-    -Guid        "c3d4e5f6-a7b8-9012-cdef-012345678901"
+    -Guid        "c3d4e5f6-a7b8-9012-cdef-012345678901" `
+    -PluginVersion "1.0.1.0" `
+    -Changelog   "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11."
 
 # ============================================================
 # Write combined manifest.json

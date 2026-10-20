@@ -1,40 +1,40 @@
 [
   {
     "category": "General",
-    "overview": "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen.",
+    "name": "JellyTube",
+    "owner": "local",
     "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan.",
+    "overview": "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen.",
     "versions": [
       {
-        "timestamp": "2026-10-20T11:21:22Z",
-        "changelog": "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11 (Tools-Check, Warteschlange, Downloads). Tools-Check erkennt das vom Plugin verwaltete yt-dlp. Serien-Modus: automatische Downloads in einer Staffel 'Season 1', manuelle Playlists als eigene Staffel. Automatisch als gesehen markierte Videos starten ebenfalls den Loesch-Timer.",
-        "version": "1.0.3.0",
-        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.3.0.zip",
-        "checksum": "9bfc23dda63a97b446179a3a177a99fa",
-        "targetAbi": "10.9.0.0"
+        "targetAbi": "10.9.0.0",
+        "changelog": "NFO-Dateien werden nur noch geschrieben, wenn sich ihr Inhalt aendert (vorher bei jedem Durchlauf neu). Beim Loeschen gesehener Videos wird jetzt auch das Vorschaubild entfernt.",
+        "checksum": "636957123aadb6f6e911237b2a695225",
+        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.4.0.zip",
+        "timestamp": "2026-10-20T11:55:19Z",
+        "version": "1.0.4.0"
       }
     ],
-    "description": "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan.",
-    "owner": "local",
-    "name": "JellyTube",
     "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTube/thumb.png"
   },
   {
     "category": "General",
-    "overview": "Nutzt Invidious als primaere Quelle fuer YouTube-Streams. yt-dlp dient als Fallback.",
+    "name": "JellyTubbing",
+    "owner": "local",
     "guid": "c3d4e5f6-a7b8-9012-cdef-012345678901",
+    "description": "YouTube-Videos direkt in Jellyfin streamen - via Invidious mit yt-dlp als Fallback.",
+    "overview": "Nutzt Invidious als primaere Quelle fuer YouTube-Streams. yt-dlp dient als Fallback.",
     "versions": [
       {
-        "timestamp": "2026-10-20T11:21:22Z",
-        "changelog": "Initiale Version",
-        "version": "1.0.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.0.0.0.zip",
-        "checksum": "317eca244156b7773e0e75518fe7410c",
-        "targetAbi": "10.9.0.0"
+        "targetAbi": "10.9.0.0",
+        "changelog": "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11.",
+        "checksum": "c2525ff69917a714cca58cc7b1ecd08d",
+        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.0.1.0.zip",
+        "timestamp": "2026-10-20T11:55:19Z",
+        "version": "1.0.1.0"
       }
     ],
-    "description": "YouTube-Videos direkt in Jellyfin streamen - via Invidious mit yt-dlp als Fallback.",
-    "owner": "local",
-    "name": "JellyTubbing",
     "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTubbing/thumb.png"
   }
 ]

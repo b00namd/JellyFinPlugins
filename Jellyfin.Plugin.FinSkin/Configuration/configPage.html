@@ -210,7 +210,8 @@
             return creds.Servers?.[0]?.AccessToken ?? '';
           } catch(e) { return ''; }
         })();
-      const h = { 'X-Emby-Token': token };
+      // Jellyfin 10.11 rejects the legacy X-Emby-* headers unless EnableLegacyAuthorization is on
+      const h = { 'Authorization': 'MediaBrowser Token="' + token + '"' };
       if (json) h['Content-Type'] = 'application/json';
       return h;
     }

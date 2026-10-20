@@ -7,7 +7,8 @@
     function apiHeaders() {
         return {
             'Content-Type': 'application/json',
-            'X-Emby-Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
+            // Jellyfin 10.11 rejects the legacy X-Emby-* headers unless EnableLegacyAuthorization is on
+            'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
         };
     }
 

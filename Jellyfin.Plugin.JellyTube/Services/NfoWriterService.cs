@@ -69,15 +69,8 @@ public class NfoWriterService
                     new XElement("thumb", meta.ThumbnailUrl)));
             }
 
-            var doc = new XDocument(elements);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(nfoPath)!);
-
-            await using var writer = new StreamWriter(nfoPath, append: false, Encoding.UTF8);
-            await writer.WriteLineAsync("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>");
-            await writer.WriteAsync(doc.ToString());
-
-            _logger.LogInformation("NFO written to {Path}", nfoPath);
+            if (await WriteDocumentAsync(new XDocument(elements), nfoPath).ConfigureAwait(false))
+                _logger.LogInformation("NFO written to {Path}", nfoPath);
         }
         catch (Exception ex)
         {
@@ -115,8 +108,8 @@ public class NfoWriterService
             if (!string.IsNullOrEmpty(meta.ThumbnailUrl))
                 root.Add(new XElement("thumb", meta.ThumbnailUrl));
 
-            await WriteDocumentAsync(new XDocument(root), nfoPath).ConfigureAwait(false);
-            _logger.LogInformation("Episode NFO written to {Path}", nfoPath);
+            if (await WriteDocumentAsync(new XDocument(root), nfoPath).ConfigureAwait(false))
+                _logger.LogInformation("Episode NFO written to {Path}", nfoPath);
         }
         catch (Exception ex)
         {
@@ -177,8 +170,8 @@ public class NfoWriterService
                     new XAttribute("type", PlaylistIdType),
                     playlistId));
 
-            await WriteDocumentAsync(new XDocument(root), nfoPath).ConfigureAwait(false);
-            _logger.LogInformation("season.nfo written to {Path}", nfoPath);
+            if (await WriteDocumentAsync(new XDocument(root), nfoPath).ConfigureAwait(false))
+                _logger.LogInformation("season.nfo written to {Path}", nfoPath);
         }
         catch (Exception ex)
         {
@@ -211,11 +204,20 @@ public class NfoWriterService
 
     private const string PlaylistIdType = "youtube-playlist";
 
-    private static async Task WriteDocumentAsync(XDocument doc, string nfoPath)
+    /// <summary>
+    /// Writes the document to <paramref name="nfoPath"/>. Returns <c>false</c> without touching the file
+    /// if it already has exactly this content — metadata passes revisit every video on each run, and
+    /// rewriting unchanged NFOs only makes Jellyfin re-read them.
+    /// </summary>
+    private static async Task<bool> WriteDocumentAsync(XDocument doc, string nfoPath)
     {
+        var content = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>" + Environment.NewLine + doc;
+
+        if (File.Exists(nfoPath) && await File.ReadAllTextAsync(nfoPath).ConfigureAwait(false) == content)
+            return false;
+
         Directory.CreateDirectory(Path.GetDirectoryName(nfoPath)!);
-        await using var writer = new StreamWriter(nfoPath, append: false, Encoding.UTF8);
-        await writer.WriteLineAsync("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>");
-        await writer.WriteAsync(doc.ToString());
+        await File.WriteAllTextAsync(nfoPath, content, Encoding.UTF8).ConfigureAwait(false);
+        return true;
     }
 }

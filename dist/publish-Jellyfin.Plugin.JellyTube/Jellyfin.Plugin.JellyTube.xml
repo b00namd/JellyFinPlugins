@@ -811,6 +811,13 @@
             folder is not a playlist season.
             </summary>
         </member>
+        <member name="M:Jellyfin.Plugin.JellyTube.Services.NfoWriterService.WriteDocumentAsync(System.Xml.Linq.XDocument,System.String)">
+            <summary>
+            Writes the document to <paramref name="nfoPath"/>. Returns <c>false</c> without touching the file
+            if it already has exactly this content — metadata passes revisit every video on each run, and
+            rewriting unchanged NFOs only makes Jellyfin re-read them.
+            </summary>
+        </member>
         <member name="T:Jellyfin.Plugin.JellyTube.Services.ThumbnailService">
             <summary>
             Downloads video thumbnails and channel poster images to disk.
