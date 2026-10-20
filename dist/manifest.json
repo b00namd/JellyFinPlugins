@@ -1,40 +1,40 @@
 [
   {
-    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTube/thumb.png",
-    "name": "JellyTube",
-    "owner": "local",
     "versions": [
       {
-        "targetAbi": "10.9.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.5.0.zip",
-        "changelog": "Neue Einstellung 'Pausen zwischen Anfragen' (standardmaessig an): yt-dlp wartet zwischen Anfragen und Downloads, damit YouTube den Server nicht voruebergehend sperrt.",
-        "timestamp": "2026-10-20T12:24:22Z",
+        "timestamp": "2026-10-20T14:36:28Z",
+        "checksum": "e4c88cd57cee92672b73ad12383ed2ef",
         "version": "1.0.5.0",
-        "checksum": "feba64004e8e7f541ad11a0a829fd0b5"
+        "changelog": "Neue Einstellung 'Pausen zwischen Anfragen' (standardmaessig an): yt-dlp wartet zwischen Anfragen und Downloads, Downloads laufen dann nacheinander, damit YouTube den Server nicht voruebergehend sperrt.",
+        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.5.0.zip",
+        "targetAbi": "10.9.0.0"
       }
     ],
-    "category": "General",
-    "description": "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan.",
+    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTube/thumb.png",
+    "overview": "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen.",
+    "owner": "local",
     "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "overview": "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen."
+    "name": "JellyTube",
+    "category": "General",
+    "description": "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan."
   },
   {
-    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTubbing/thumb.png",
-    "name": "JellyTubbing",
-    "owner": "local",
     "versions": [
       {
-        "targetAbi": "10.9.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.0.1.0.zip",
-        "changelog": "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11.",
-        "timestamp": "2026-10-20T12:24:22Z",
+        "timestamp": "2026-10-20T14:36:28Z",
+        "checksum": "b796514c4d9e1bc818cf9635b37c8ee7",
         "version": "1.0.1.0",
-        "checksum": "b796514c4d9e1bc818cf9635b37c8ee7"
+        "changelog": "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11.",
+        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.0.1.0.zip",
+        "targetAbi": "10.9.0.0"
       }
     ],
-    "category": "General",
-    "description": "YouTube-Videos direkt in Jellyfin streamen - via Invidious mit yt-dlp als Fallback.",
+    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTubbing/thumb.png",
+    "overview": "Nutzt Invidious als primaere Quelle fuer YouTube-Streams. yt-dlp dient als Fallback.",
+    "owner": "local",
     "guid": "c3d4e5f6-a7b8-9012-cdef-012345678901",
-    "overview": "Nutzt Invidious als primaere Quelle fuer YouTube-Streams. yt-dlp dient als Fallback."
+    "name": "JellyTubbing",
+    "category": "General",
+    "description": "YouTube-Videos direkt in Jellyfin streamen - via Invidious mit yt-dlp als Fallback."
   }
 ]

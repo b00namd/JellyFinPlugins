@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
@@ -229,15 +230,11 @@ public class YtDlpService
 
             if (config.ThrottleRequests)
             {
-                // Spelled out instead of "-t sleep" so it also works with an older, user-provided yt-dlp.
-                psi.ArgumentList.Add("--sleep-requests");
-                psi.ArgumentList.Add(SleepRequestsSeconds.ToString(CultureInfo.InvariantCulture));
-                psi.ArgumentList.Add("--sleep-interval");
-                psi.ArgumentList.Add(SleepIntervalSeconds.ToString(CultureInfo.InvariantCulture));
-                psi.ArgumentList.Add("--max-sleep-interval");
-                psi.ArgumentList.Add(MaxSleepIntervalSeconds.ToString(CultureInfo.InvariantCulture));
-                psi.ArgumentList.Add("--sleep-subtitles");
-                psi.ArgumentList.Add(SleepSubtitlesSeconds.ToString(CultureInfo.InvariantCulture));
+                foreach (var (flag, value) in ThrottleArguments())
+                {
+                    psi.ArgumentList.Add(flag);
+                    psi.ArgumentList.Add(value);
+                }
             }
 
             // NOTE: no --write-thumbnail. yt-dlp would write a redundant .webp next to each video;
@@ -311,9 +308,10 @@ public class YtDlpService
             using var proc = new Process { StartInfo = psi };
             proc.Start();
 
-            // 6-hour timeout to prevent indefinitely hanging downloads
+            // Timeout to prevent indefinitely hanging downloads. Throttling sleeps before every file
+            // (20–40 s per video), so a large playlist needs far longer than 6 hours.
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(TimeSpan.FromHours(6));
+            timeoutCts.CancelAfter(TimeSpan.FromHours(config.ThrottleRequests ? 48 : 6));
             var linkedToken = timeoutCts.Token;
 
             try
@@ -564,6 +562,15 @@ public class YtDlpService
             _ => DownloadMergeFormat.Mp4
         };
 
+    // Spelled out instead of "-t sleep" so it also works with an older, user-provided yt-dlp.
+    private static IEnumerable<(string Flag, string Value)> ThrottleArguments()
+    {
+        yield return ("--sleep-requests", SleepRequestsSeconds.ToString(CultureInfo.InvariantCulture));
+        yield return ("--sleep-interval", SleepIntervalSeconds.ToString(CultureInfo.InvariantCulture));
+        yield return ("--max-sleep-interval", MaxSleepIntervalSeconds.ToString(CultureInfo.InvariantCulture));
+        yield return ("--sleep-subtitles", SleepSubtitlesSeconds.ToString(CultureInfo.InvariantCulture));
+    }
+
     private static OptionSet BuildSubtitleOptions(bool playlist, string? archivePath = null, int maxAgeDays = 0, bool isScheduled = false)
     {
         var config = Plugin.Instance!.Configuration;
@@ -604,10 +611,11 @@ public class YtDlpService
 
         if (config.ThrottleRequests)
         {
-            opts.SleepRequests    = (int)Math.Ceiling(SleepRequestsSeconds); // OptionSet only takes whole seconds
-            opts.SleepInterval    = SleepIntervalSeconds;
-            opts.MaxSleepInterval = MaxSleepIntervalSeconds;
-            opts.SleepSubtitles   = SleepSubtitlesSeconds;
+            // Custom options rather than OptionSet.SleepRequests, which only takes whole seconds.
+            foreach (var (flag, value) in ThrottleArguments())
+            {
+                opts.AddCustomOption(flag, value);
+            }
         }
 
         // Use archive file to skip already-downloaded (or deleted) videos

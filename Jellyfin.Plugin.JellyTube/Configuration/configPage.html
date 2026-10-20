@@ -241,7 +241,7 @@
                                 <input id="ThrottleRequests" name="ThrottleRequests" type="checkbox" is="emby-checkbox" />
                                 <span>Pausen zwischen Anfragen (Schutz vor YouTube-Sperre)</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">yt-dlp wartet kurz zwischen Anfragen (0,75 s) und vor jedem Download (10–20 s), damit YouTube den Server nicht vorübergehend sperrt („rate-limited“). Downloads dauern dadurch etwas länger. Empfohlen.</div>
+                            <div class="fieldDescription checkboxFieldDescription">yt-dlp wartet zwischen Anfragen (0,75 s), vor jeder heruntergeladenen Datei (10–20 s, bei getrenntem Video und Ton also zweimal je Video) und vor jedem Untertitel (5 s), damit YouTube den Server nicht vorübergehend sperrt („rate-limited“). Downloads laufen dann nacheinander statt gleichzeitig und dauern pro Video etwa 20–40 s länger. Empfohlen.</div>
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">

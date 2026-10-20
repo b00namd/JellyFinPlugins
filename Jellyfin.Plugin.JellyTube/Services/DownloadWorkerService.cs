@@ -30,6 +30,10 @@ public class DownloadWorkerService : BackgroundService
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<DownloadWorkerService> _logger;
 
+    // With ThrottleRequests on, jobs run one at a time: yt-dlp's sleeps only pace a single
+    // process, so parallel jobs would still hit YouTube N times as fast.
+    private readonly SemaphoreSlim _throttleGate = new(1, 1);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="DownloadWorkerService"/> class.
     /// </summary>
@@ -81,12 +85,32 @@ public class DownloadWorkerService : BackgroundService
             var capturedJob = job;
             _ = Task.Run(async () =>
             {
+                var throttled = Plugin.Instance?.Configuration.ThrottleRequests ?? false;
+                var gateTaken = false;
                 try
                 {
-                    await ProcessJobAsync(capturedJob, stoppingToken);
+                    if (throttled)
+                    {
+                        await _throttleGate.WaitAsync(stoppingToken);
+                        gateTaken = true;
+                    }
+
+                    // The job may have been cancelled while it waited for the gate.
+                    if (capturedJob.Status == DownloadJobStatus.Queued)
+                    {
+                        await ProcessJobAsync(capturedJob, stoppingToken);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
                 }
                 finally
                 {
+                    if (gateTaken)
+                    {
+                        _throttleGate.Release();
+                    }
+
                     semaphore.Release();
                 }
             }, stoppingToken);
