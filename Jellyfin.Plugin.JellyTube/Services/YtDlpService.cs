@@ -49,7 +49,7 @@ public class YtDlpService
     /// Resolves the yt-dlp binary to invoke: an explicit configured path wins; otherwise the
     /// plugin-managed binary if it has been downloaded; otherwise "yt-dlp" from PATH.
     /// </summary>
-    private string ResolveYtDlpBinary()
+    internal string ResolveYtDlpBinary()
     {
         var configured = Plugin.Instance!.Configuration.YtDlpBinaryPath;
         if (!string.IsNullOrWhiteSpace(configured))

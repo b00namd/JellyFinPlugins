@@ -158,7 +158,7 @@ public class JellyTubeController : ControllerBase
     public async Task<ActionResult<ToolsCheckResult>> CheckTools()
     {
         var config = Plugin.Instance!.Configuration;
-        var ytDlpBin = string.IsNullOrWhiteSpace(config.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
+        var ytDlpBin = _ytDlp.ResolveYtDlpBinary();
 
         var ffmpegBin = string.IsNullOrWhiteSpace(config.FfmpegBinaryPath) ? "ffmpeg" : config.FfmpegBinaryPath;
 

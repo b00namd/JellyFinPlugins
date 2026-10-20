@@ -95,8 +95,8 @@ $manifestEntries += Build-Plugin `
     -Description "YouTube-Videos und Playlists direkt in die Jellyfin-Mediathek herunterladen." `
     -Overview    "Verwendet yt-dlp zum Herunterladen von YouTube-Inhalten und erstellt NFO-Metadaten sowie Vorschaubilder." `
     -Guid        "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-    -PluginVersion "1.0.1.0" `
-    -Changelog   "AAC-Ton (m4a) wird jetzt auch bei den 2K- und 4K-Qualitaetsprofilen bevorzugt (Direct-Play)."
+    -PluginVersion "1.0.2.0" `
+    -Changelog   "Tools-Check erkennt das vom Plugin verwaltete yt-dlp. Serien-Modus: automatische Downloads in einer Staffel 'Season 1', manuelle Playlists als eigene Staffel. Automatisch als gesehen markierte Videos starten ebenfalls den Loesch-Timer."
 
 # ============================================================
 # Build JellyTubbing
