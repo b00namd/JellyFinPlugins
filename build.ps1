@@ -95,8 +95,8 @@ $manifestEntries += Build-Plugin `
     -Description "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan." `
     -Overview    "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen." `
     -Guid        "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-    -PluginVersion "1.0.4.0" `
-    -Changelog   "NFO-Dateien werden nur noch geschrieben, wenn sich ihr Inhalt aendert (vorher bei jedem Durchlauf neu). Beim Loeschen gesehener Videos wird jetzt auch das Vorschaubild entfernt."
+    -PluginVersion "1.0.5.0" `
+    -Changelog   "Neue Einstellung 'Pausen zwischen Anfragen' (standardmaessig an): yt-dlp wartet zwischen Anfragen und Downloads, damit YouTube den Server nicht voruebergehend sperrt."
 
 # ============================================================
 # Build JellyTubbing

@@ -134,6 +134,7 @@
             document.getElementById('MaxConcurrentDownloads').value     = config.MaxConcurrentDownloads || 2;
             document.getElementById('DownloadRetryCount').value         = (config.DownloadRetryCount != null) ? config.DownloadRetryCount : 2;
             document.getElementById('PlaylistScanLimit').value          = (config.PlaylistScanLimit != null) ? config.PlaylistScanLimit : 50;
+            document.getElementById('ThrottleRequests').checked         = (config.ThrottleRequests != null) ? !!config.ThrottleRequests : true;
             document.getElementById('OrganiseByChannel').checked        = !!config.OrganiseByChannel;
             document.getElementById('OrganiseAsSeries').checked         = !!config.OrganiseAsSeries;
             document.getElementById('EmbedChapters').checked            = (config.EmbedChapters != null) ? !!config.EmbedChapters : true;
@@ -169,6 +170,7 @@
             config.DownloadRetryCount         = isNaN(retryVal) ? 2 : Math.max(0, retryVal);
             var scanVal = parseInt(document.getElementById('PlaylistScanLimit').value);
             config.PlaylistScanLimit          = isNaN(scanVal) ? 50 : Math.max(0, scanVal);
+            config.ThrottleRequests           = document.getElementById('ThrottleRequests').checked;
             config.OrganiseByChannel          = document.getElementById('OrganiseByChannel').checked;
             config.OrganiseAsSeries           = document.getElementById('OrganiseAsSeries').checked;
             config.EmbedChapters              = document.getElementById('EmbedChapters').checked;

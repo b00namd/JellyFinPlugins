@@ -14,6 +14,8 @@ Lädt YouTube-Videos, Playlists und Kanäle in die Jellyfin-Mediathek – manuel
 - Shorts bei Kanal-Downloads ausschließen
 - Cookies-Datei für Inhalte, die eine Anmeldung erfordern
 - Automatische Wiederholung fehlgeschlagener Downloads, erzwungenes erneutes Herunterladen
+- Pausen zwischen Anfragen schützen vor einer vorübergehenden YouTube-Sperre („rate-limited“)
+- Pausen zwischen Anfragen schützen vor einer vorübergehenden YouTube-Sperre („rate-limited“)
 
 **Mediathek**
 - NFO-Dateien und Vorschaubilder automatisch generieren
@@ -48,6 +50,8 @@ Lädt YouTube-Videos, Playlists und Kanäle in die Jellyfin-Mediathek – manuel
 | Max. gleichzeitige Downloads | 1–10 |
 | Wiederholungsversuche | Wie oft ein fehlgeschlagener Download erneut versucht wird |
 | Kanal-Scantiefe | Wie viele Videos pro Lauf eines Kanals geprüft werden |
+| Pausen zwischen Anfragen | Standardmäßig an: yt-dlp wartet zwischen Anfragen und Downloads, damit YouTube den Server nicht sperrt |
+| Pausen zwischen Anfragen | Standardmäßig an: yt-dlp wartet zwischen Anfragen und Downloads, damit YouTube den Server nicht sperrt |
 | Nach Kanal sortieren | Erstellt Unterordner pro Kanal |
 | Kanäle als Serien darstellen | Kanal = Serie, Videos = Episoden (Mediathek vom Typ „Serien“ nötig) |
 | YouTube-Kapitel einbetten | Kapitelmarken in die Videodatei schreiben |

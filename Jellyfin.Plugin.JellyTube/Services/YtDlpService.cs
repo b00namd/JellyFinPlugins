@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,12 @@ public class YtDlpService
     private static readonly System.Text.RegularExpressions.Regex _membersOnlyRegex = new(
         @"\[youtube\]\s+([A-Za-z0-9_-]{11}):\s+Join this channel",
         System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    // Delays used when ThrottleRequests is on — the values of yt-dlp's "-t sleep" preset.
+    private const double SleepRequestsSeconds = 0.75;
+    private const int SleepIntervalSeconds = 10;
+    private const int MaxSleepIntervalSeconds = 20;
+    private const int SleepSubtitlesSeconds = 5;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="YtDlpService"/> class.
@@ -218,6 +225,19 @@ public class YtDlpService
             {
                 psi.ArgumentList.Add("--cookies");
                 psi.ArgumentList.Add(config.CookiesFilePath);
+            }
+
+            if (config.ThrottleRequests)
+            {
+                // Spelled out instead of "-t sleep" so it also works with an older, user-provided yt-dlp.
+                psi.ArgumentList.Add("--sleep-requests");
+                psi.ArgumentList.Add(SleepRequestsSeconds.ToString(CultureInfo.InvariantCulture));
+                psi.ArgumentList.Add("--sleep-interval");
+                psi.ArgumentList.Add(SleepIntervalSeconds.ToString(CultureInfo.InvariantCulture));
+                psi.ArgumentList.Add("--max-sleep-interval");
+                psi.ArgumentList.Add(MaxSleepIntervalSeconds.ToString(CultureInfo.InvariantCulture));
+                psi.ArgumentList.Add("--sleep-subtitles");
+                psi.ArgumentList.Add(SleepSubtitlesSeconds.ToString(CultureInfo.InvariantCulture));
             }
 
             // NOTE: no --write-thumbnail. yt-dlp would write a redundant .webp next to each video;
@@ -580,6 +600,14 @@ public class YtDlpService
         if (!string.IsNullOrWhiteSpace(config.CookiesFilePath))
         {
             opts.Cookies = config.CookiesFilePath;
+        }
+
+        if (config.ThrottleRequests)
+        {
+            opts.SleepRequests    = (int)Math.Ceiling(SleepRequestsSeconds); // OptionSet only takes whole seconds
+            opts.SleepInterval    = SleepIntervalSeconds;
+            opts.MaxSleepInterval = MaxSleepIntervalSeconds;
+            opts.SleepSubtitles   = SleepSubtitlesSeconds;
         }
 
         // Use archive file to skip already-downloaded (or deleted) videos

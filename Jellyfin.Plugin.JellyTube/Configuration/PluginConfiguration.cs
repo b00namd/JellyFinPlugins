@@ -95,6 +95,12 @@ public class PluginConfiguration : BasePluginConfiguration
     public int PlaylistScanLimit { get; set; } = 50;
 
     /// <summary>
+    /// Gets or sets a value indicating whether yt-dlp pauses between requests and downloads
+    /// (the same delays as its "-t sleep" preset) so YouTube does not rate-limit the server.
+    /// </summary>
+    public bool ThrottleRequests { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether YouTube Shorts are excluded from channel downloads.
     /// When enabled, a bare channel URL is scanned via its "/videos" tab (long-form uploads only)
     /// instead of the channel root, which also pulls in the separate Shorts tab.
