@@ -41,34 +41,48 @@
             document.getElementById('DeleteWatchedStrm').checked    = !!config.DeleteWatchedStrm;
             document.getElementById('YtDlpBinaryPath').value    = config.YtDlpBinaryPath || '';
             document.getElementById('FfmpegBinaryPath').value   = config.FfmpegBinaryPath || '';
-            document.getElementById('PreferredQuality').value   = config.PreferredQuality || '720p';
+            // Older versions offered 1440p/2160p; anything above 1080p is capped now
+            var quality = config.PreferredQuality || '1080p';
+            document.getElementById('PreferredQuality').value   = parseInt(quality, 10) > 1080 ? '1080p' : quality;
+            document.getElementById('CacheRetentionHours').value = config.CacheRetentionHours || 48;
+            document.getElementById('CachePath').value          = config.CachePath || '';
+            document.getElementById('JellyfinServerUrl').value  = config.JellyfinServerUrl || 'http://localhost:8096';
             document.getElementById('TrendingRegion').value     = config.TrendingRegion || 'DE';
 
-            // Show OAuth redirect hint
             // Store synced channel IDs for checkbox rendering
             window._jtSyncedIds = config.SyncedChannelIds || [];
         });
     }
 
-    function saveConfig() {
-        ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
-            config.YouTubeApiKey       = document.getElementById('YouTubeApiKey').value.trim();
-            config.OAuthClientId       = document.getElementById('OAuthClientId').value.trim();
-            config.OAuthClientSecret   = document.getElementById('OAuthClientSecret').value.trim();
-            config.StrmOutputPath      = document.getElementById('StrmOutputPath').value.trim();
-            config.MaxVideosPerChannel = parseInt(document.getElementById('MaxVideosPerChannel').value, 10) || 25;
-            config.IncludeShorts       = document.getElementById('IncludeShorts').checked;
-            config.DeleteWatchedStrm   = document.getElementById('DeleteWatchedStrm').checked;
-            config.YtDlpBinaryPath     = document.getElementById('YtDlpBinaryPath').value.trim();
-            config.FfmpegBinaryPath    = document.getElementById('FfmpegBinaryPath').value.trim();
-            config.PreferredQuality    = document.getElementById('PreferredQuality').value;
-            config.TrendingRegion      = document.getElementById('TrendingRegion').value;
+    function applyForm(config) {
+        config.YouTubeApiKey       = document.getElementById('YouTubeApiKey').value.trim();
+        config.OAuthClientId       = document.getElementById('OAuthClientId').value.trim();
+        config.OAuthClientSecret   = document.getElementById('OAuthClientSecret').value.trim();
+        config.StrmOutputPath      = document.getElementById('StrmOutputPath').value.trim();
+        config.MaxVideosPerChannel = parseInt(document.getElementById('MaxVideosPerChannel').value, 10) || 25;
+        config.IncludeShorts       = document.getElementById('IncludeShorts').checked;
+        config.DeleteWatchedStrm   = document.getElementById('DeleteWatchedStrm').checked;
+        config.YtDlpBinaryPath     = document.getElementById('YtDlpBinaryPath').value.trim();
+        config.FfmpegBinaryPath    = document.getElementById('FfmpegBinaryPath').value.trim();
+        config.PreferredQuality    = document.getElementById('PreferredQuality').value;
+        config.CacheRetentionHours = parseInt(document.getElementById('CacheRetentionHours').value, 10) || 48;
+        config.CachePath           = document.getElementById('CachePath').value.trim();
+        config.JellyfinServerUrl   = document.getElementById('JellyfinServerUrl').value.trim() || 'http://localhost:8096';
+        config.TrendingRegion      = document.getElementById('TrendingRegion').value;
 
-            // Collect checked subscriptions
+        // Collect checked subscriptions – only when the list was loaded, otherwise a page opened
+        // without a Google connection would wipe the configured channels
+        var listEl = document.getElementById('jt-sub-list');
+        if (listEl && listEl.querySelector('.jt-sub-checkbox')) {
             var checked = document.querySelectorAll('.jt-sub-checkbox:checked');
             config.SyncedChannelIds = Array.from(checked).map(function (cb) { return cb.dataset.channelId; });
+        }
+        return config;
+    }
 
-            ApiClient.updatePluginConfiguration(PLUGIN_ID, config).then(function () {
+    function saveConfig() {
+        ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
+            ApiClient.updatePluginConfiguration(PLUGIN_ID, applyForm(config)).then(function () {
                 showToast('Einstellungen gespeichert.');
                 checkYtDlp();
             });
@@ -97,8 +111,8 @@
                 if (data.ffmpegAvailable) {
                     elFf.innerHTML = '<span class="jt-ok">&#10003;</span> ' + (data.ffmpegVersion || '').split(' ').slice(0, 3).join(' ');
                 } else {
-                    elFf.innerHTML = '<span class="jt-info">&#9432;</span> ffmpeg nicht gefunden' +
-                        ' <span class="jt-info">(nur fuer 1080p benoetigt)</span>';
+                    elFf.innerHTML = '<span class="jt-err">&#10007;</span> ffmpeg nicht gefunden' +
+                        ' <span class="jt-info">(noetig zum Zusammenfuegen von Video und Ton)</span>';
                 }
             })
             .catch(function () {
@@ -298,22 +312,7 @@
     function triggerSync() {
         // Save config first, then start sync
         ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
-            config.YouTubeApiKey       = document.getElementById('YouTubeApiKey').value.trim();
-            config.OAuthClientId       = document.getElementById('OAuthClientId').value.trim();
-            config.OAuthClientSecret   = document.getElementById('OAuthClientSecret').value.trim();
-            config.StrmOutputPath      = document.getElementById('StrmOutputPath').value.trim();
-            config.MaxVideosPerChannel = parseInt(document.getElementById('MaxVideosPerChannel').value, 10) || 25;
-            config.IncludeShorts       = document.getElementById('IncludeShorts').checked;
-            config.DeleteWatchedStrm   = document.getElementById('DeleteWatchedStrm').checked;
-            config.YtDlpBinaryPath     = document.getElementById('YtDlpBinaryPath').value.trim();
-            config.FfmpegBinaryPath    = document.getElementById('FfmpegBinaryPath').value.trim();
-            config.PreferredQuality    = document.getElementById('PreferredQuality').value;
-            config.TrendingRegion      = document.getElementById('TrendingRegion').value;
-
-            var checked = document.querySelectorAll('.jt-sub-checkbox:checked');
-            config.SyncedChannelIds = Array.from(checked).map(function (cb) { return cb.dataset.channelId; });
-
-            return ApiClient.updatePluginConfiguration(PLUGIN_ID, config);
+            return ApiClient.updatePluginConfiguration(PLUGIN_ID, applyForm(config));
         }).then(function () {
             return fetch(API_BASE + '/sync', { method: 'POST', headers: apiHeaders() });
         }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })

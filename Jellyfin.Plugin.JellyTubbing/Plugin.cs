@@ -9,7 +9,7 @@ using MediaBrowser.Model.Serialization;
 namespace Jellyfin.Plugin.JellyTubbing;
 
 /// <summary>
-/// JellyTubbing plugin – stream YouTube videos directly in Jellyfin via Invidious.
+/// JellyTubbing plugin – YouTube subscriptions as a STRM library, videos are downloaded on first play.
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
@@ -23,7 +23,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(appPaths, xmlSerializer)
     {
         Instance = this;
+        Paths = appPaths;
     }
+
+    /// <summary>Gets Jellyfin's application paths (cache and plugin configuration folders).</summary>
+    public IApplicationPaths Paths { get; }
 
     /// <inheritdoc />
     public override string Name => "JellyTubbing";
@@ -32,7 +36,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override Guid Id => Guid.Parse("c3d4e5f6-a7b8-9012-cdef-012345678901");
 
     /// <inheritdoc />
-    public override string Description => "YouTube-Videos direkt in Jellyfin streamen – über Invidious mit yt-dlp als Fallback.";
+    public override string Description => "YouTube-Abos als STRM-Bibliothek in Jellyfin – Videos werden beim ersten Abspielen geladen.";
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()

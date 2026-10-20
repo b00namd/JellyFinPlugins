@@ -117,64 +117,74 @@ public class YouTubeApiService
     // Channel videos (public – API key only)
     // -----------------------------------------------------------------------
 
-    /// <summary>Returns the most recent videos from a YouTube channel, optionally excluding Shorts.</summary>
-    public async Task<List<(string VideoId, YouTubeVideoSnippet Snippet, TimeSpan Duration)>> GetChannelVideosAsync(
+    /// <summary>
+    /// Returns the channel's name and its most recent videos, optionally excluding Shorts.
+    /// Reads the channel's uploads playlist (1 quota unit per page) instead of search.list
+    /// (100 units, and its date ordering skips videos). The name is null if the channel lookup failed.
+    /// </summary>
+    public async Task<(string? ChannelTitle, List<(string VideoId, YouTubeVideoSnippet Snippet, TimeSpan Duration)> Videos)> GetChannelVideosAsync(
         string channelId, int maxResults, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(ApiKey)) return new();
+        var result = new List<(string, YouTubeVideoSnippet, TimeSpan)>();
+        if (string.IsNullOrWhiteSpace(ApiKey)) return (null, result);
 
         var includeShorts = Plugin.Instance?.Configuration.IncludeShorts ?? false;
-        var result = new List<(string, YouTubeVideoSnippet, TimeSpan)>();
-        string? pageToken = null;
-        var remaining = maxResults;
+        var key = Uri.EscapeDataString(ApiKey);
+        var client = _http.CreateClient("jellytubbing");
 
-        do
+        try
         {
-            var batch = Math.Min(remaining, 50);
-            var url = $"{Base}/search?part=snippet&channelId={Uri.EscapeDataString(channelId)}" +
-                      $"&type=video&order=date&maxResults={batch}&key={Uri.EscapeDataString(ApiKey)}";
-            if (pageToken is not null) url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
-
-            try
+            var channels = await client.GetFromJsonAsync<YouTubeChannelListResponse>(
+                $"{Base}/channels?part=snippet,contentDetails&id={Uri.EscapeDataString(channelId)}&key={key}", ct);
+            var channel = channels?.Items.FirstOrDefault();
+            if (channel is null || string.IsNullOrEmpty(channel.ContentDetails.RelatedPlaylists.Uploads))
             {
-                var client = _http.CreateClient("jellytubbing");
-                var resp = await client.GetFromJsonAsync<YouTubeSearchListResponse>(url, ct);
-                if (resp?.Items is null) break;
+                _logger.LogWarning("Channel {ChannelId} not found.", channelId);
+                return (null, result);
+            }
 
-                // Always fetch contentDetails for duration (NFO metadata + Shorts filter)
-                var ids = string.Join(",", resp.Items.Select(i => Uri.EscapeDataString(i.Id.VideoId)));
-                var durations = new Dictionary<string, TimeSpan>();
-                var detailUrl = $"{Base}/videos?part=contentDetails&id={ids}&key={Uri.EscapeDataString(ApiKey)}";
-                var details = await client.GetFromJsonAsync<YouTubeVideoListResponse>(detailUrl, ct);
-                if (details?.Items is not null)
-                {
-                    foreach (var v in details.Items)
-                    {
-                        if (!string.IsNullOrEmpty(v.ContentDetails?.Duration))
-                            durations[v.Id] = ParseDuration(v.ContentDetails.Duration);
-                    }
-                }
+            string? pageToken = null;
+            var pages = 0;
 
-                foreach (var item in resp.Items)
+            // Shorts, live streams and premieres are filtered out after fetching, so keep paging
+            // until enough regular videos are found (bounded so a Shorts-only channel can't page forever).
+            do
+            {
+                var url = $"{Base}/playlistItems?part=contentDetails&maxResults=50" +
+                          $"&playlistId={Uri.EscapeDataString(channel.ContentDetails.RelatedPlaylists.Uploads)}&key={key}";
+                if (pageToken is not null) url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
+
+                var page = await client.GetFromJsonAsync<YouTubePlaylistItemListResponse>(url, ct);
+                if (page is null || page.Items.Length == 0) break;
+
+                var ids = string.Join(",", page.Items.Select(i => Uri.EscapeDataString(i.ContentDetails.VideoId)));
+                var details = await client.GetFromJsonAsync<YouTubeVideoListResponse>(
+                    $"{Base}/videos?part=snippet,contentDetails&id={ids}&key={key}", ct);
+
+                foreach (var v in details?.Items ?? [])
                 {
-                    var dur = durations.TryGetValue(item.Id.VideoId, out var d) ? d : TimeSpan.Zero;
-                    if (!includeShorts && dur.TotalSeconds > 0 && dur.TotalSeconds <= 120)
+                    if (!string.Equals(v.Snippet.LiveBroadcastContent, "none", StringComparison.OrdinalIgnoreCase))
                         continue;
-                    result.Add((item.Id.VideoId, item.Snippet, dur));
+
+                    var dur = string.IsNullOrEmpty(v.ContentDetails?.Duration) ? TimeSpan.Zero : ParseDuration(v.ContentDetails.Duration);
+                    if (!includeShorts && dur.TotalSeconds > 0 && dur.TotalSeconds <= 180)
+                        continue;
+
+                    result.Add((v.Id, v.Snippet, dur));
+                    if (result.Count >= maxResults) break;
                 }
 
-                pageToken  = resp.NextPageToken;
-                remaining -= resp.Items.Length;
+                pageToken = page.NextPageToken;
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to fetch videos for channel {ChannelId}", channelId);
-                break;
-            }
-        }
-        while (pageToken is not null && remaining > 0);
+            while (pageToken is not null && result.Count < maxResults && ++pages < 10);
 
-        return result;
+            return (channel.Snippet.Title, result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch videos for channel {ChannelId}", channelId);
+            return (null, result);
+        }
     }
 
     private static TimeSpan ParseDuration(string iso)

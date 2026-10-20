@@ -15,7 +15,7 @@
             REST API endpoints for the JellyTubbing plugin.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.#ctor(Jellyfin.Plugin.JellyTubbing.Services.OAuthService,Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService,Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService,Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.#ctor(Jellyfin.Plugin.JellyTubbing.Services.OAuthService,Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService,MediaBrowser.Model.Tasks.ITaskManager)">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController"/> class.
             </summary>
@@ -41,24 +41,15 @@
         <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetSubscriptions(System.Threading.CancellationToken)">
             <summary>Returns the user's YouTube subscriptions (requires OAuth).</summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.TriggerSync(System.Threading.CancellationToken)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.TriggerSync">
             <summary>Triggers an immediate sync of all configured channels.</summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.StreamVideo(System.String,System.Threading.CancellationToken)">
             <summary>
-            Resolves a YouTube video and delivers it to the client.
-            Combined streams: 302 redirect to YouTube CDN.
-            DASH streams: ffmpeg merges video+audio CDN URLs and pipes fragmented MP4.
+            Delivers a YouTube video for STRM playback. The first request downloads the video completely
+            into the cache (it waits until the download is done); later requests are served from disk
+            with range support, so seeking and resuming work.
             </summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetHlsPlaylist(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Returns the HLS playlist for a DASH video.
-            Starts ffmpeg transcoding in the background if not already running.
-            </summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Api.JellyTubbingController.GetHlsSegment(System.String,System.String,System.Threading.CancellationToken)">
-            <summary>Serves an individual HLS segment (.ts file), waiting up to 15 s for it to be written.</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Channel.JellyTubbingChannel">
             <summary>
@@ -66,7 +57,7 @@
             Subscribed channels are synced separately as STRM files via <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask"/>.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Channel.JellyTubbingChannel.#ctor(Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Channel.JellyTubbingChannel.#ctor(Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService)">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Channel.JellyTubbingChannel"/> class.
             </summary>
@@ -140,7 +131,7 @@
             <summary>Gets or sets maximum number of videos to sync per channel.</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.IncludeShorts">
-            <summary>Gets or sets whether YouTube Shorts (≤ 120 s) are included in the sync.</summary>
+            <summary>Gets or sets whether YouTube Shorts (≤ 180 s) are included in the sync.</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.DeleteWatchedStrm">
             <summary>Gets or sets whether STRM files are deleted after being watched.</summary>
@@ -149,10 +140,16 @@
             <summary>Gets or sets the optional path to the yt-dlp binary.</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.FfmpegBinaryPath">
-            <summary>Gets or sets the optional path to the ffmpeg binary (used for 1080p DASH merging).</summary>
+            <summary>Gets or sets the optional path to the ffmpeg binary (yt-dlp uses it to merge video and audio).</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.PreferredQuality">
-            <summary>Gets or sets the preferred stream quality (360p, 480p, 720p, 1080p).</summary>
+            <summary>Gets or sets the maximum video height (360p–1080p; higher values are capped at 1080p).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.CachePath">
+            <summary>Gets or sets the folder for videos downloaded on playback. Empty = Jellyfin's cache folder.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.CacheRetentionHours">
+            <summary>Gets or sets how many hours a cached video is kept after it was last played.</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Configuration.PluginConfiguration.TrendingRegion">
             <summary>Gets or sets the ISO 3166-1 alpha-2 region code for trending videos (e.g. DE, US).</summary>
@@ -165,6 +162,9 @@
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeVideoSnippet">
             <summary>Snippet block of a YouTube video.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Models.YouTubeVideoSnippet.LiveBroadcastContent">
+            <summary>"none" for regular videos, "live" or "upcoming" for streams and premieres.</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeContentDetails">
             <summary>Content details block of a YouTube video.</summary>
@@ -193,14 +193,32 @@
         <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeResourceId">
             <summary>Resource identifier inside a subscription snippet.</summary>
         </member>
-        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeSearchListResponse">
-            <summary>YouTube Data API v3 – search.list response.</summary>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeChannelListResponse">
+            <summary>YouTube Data API v3 – channels.list response.</summary>
         </member>
-        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeSearchItem">
-            <summary>A single search result item.</summary>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeChannelItem">
+            <summary>A single channel item.</summary>
         </member>
-        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeSearchItemId">
-            <summary>The id block of a search result.</summary>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeChannelSnippet">
+            <summary>Snippet of a channel.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeChannelContentDetails">
+            <summary>Content details of a channel.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubeRelatedPlaylists">
+            <summary>Playlists belonging to a channel.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Models.YouTubeRelatedPlaylists.Uploads">
+            <summary>ID of the playlist holding all uploads, newest first.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubePlaylistItemListResponse">
+            <summary>YouTube Data API v3 – playlistItems.list response.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubePlaylistItem">
+            <summary>A single playlist item.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Models.YouTubePlaylistItemContentDetails">
+            <summary>Content details of a playlist item.</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Models.OAuthTokenResponse">
             <summary>Google OAuth2 token response.</summary>
@@ -213,7 +231,7 @@
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Plugin">
             <summary>
-            JellyTubbing plugin – stream YouTube videos directly in Jellyfin via Invidious.
+            JellyTubbing plugin – YouTube subscriptions as a STRM library, videos are downloaded on first play.
             </summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Plugin.Instance">
@@ -223,6 +241,9 @@
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Plugin"/> class.
             </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyTubbing.Plugin.Paths">
+            <summary>Gets Jellyfin's application paths (cache and plugin configuration folders).</summary>
         </member>
         <member name="P:Jellyfin.Plugin.JellyTubbing.Plugin.Name">
             <inheritdoc />
@@ -250,7 +271,7 @@
             Appears under Administration → Scheduled Tasks → JellyTubbing.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.#ctor(Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StrmService,MediaBrowser.Controller.Library.ILibraryManager,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask})">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.#ctor(Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService,Jellyfin.Plugin.JellyTubbing.Services.StrmService,Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList,MediaBrowser.Controller.Library.ILibraryManager,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask})">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask"/> class.
             </summary>
@@ -273,33 +294,23 @@
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.ChannelSyncTask.ExecuteAsync(System.IProgress{System.Double},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService">
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList">
             <summary>
-            Manages per-video HLS transcoding sessions for DASH streams (1080p+).
-            ffmpeg merges separate video+audio streams into HLS segments on disk,
-            enabling seeking within the transcoded range.
+            Remembers the IDs of videos whose STRM files were deleted as watched, so the channel sync
+            does not create them again while they are still among a channel's newest videos.
+            Stored one ID per line in <c>jellytubbing-deleted.txt</c> in the plugin configuration folder.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService})">
-            <summary>Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService"/> class.</summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.EnsureReadyAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList})">
             <summary>
-            Ensures a transcoding session exists and has produced at least one segment.
-            Returns the path to the M3U8 playlist file, or null on timeout/error.
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList"/> class.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.GetFilePathAsync(System.String,System.String,System.Threading.CancellationToken)">
-            <summary>
-            Returns the full path to a segment file, waiting up to 15 s for it to appear.
-            Returns null if the session is unknown or the file does not appear in time.
-            </summary>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList.Load">
+            <summary>Returns all remembered video IDs.</summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsTranscodeService.Dispose">
-            <inheritdoc />
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.HlsSession.WaitReadyAsync(System.Threading.CancellationToken)">
-            <summary>Starts ffmpeg (once) and waits until at least 2 segments are on disk (playback buffer).</summary>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList.Add(System.String)">
+            <summary>Adds a video ID to the list.</summary>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.OAuthService">
             <summary>
@@ -333,30 +344,6 @@
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.OAuthService.Revoke">
             <summary>Clears all stored OAuth tokens.</summary>
         </member>
-        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService">
-            <summary>
-            Resolves a YouTube video ID to direct stream URL(s) via yt-dlp.
-            For 1080p+, yt-dlp returns separate video and audio URLs (DASH).
-            Resolved URLs are cached for 4 hours so repeated playback starts instantly.
-            </summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService})">
-            <summary>
-            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService"/> class.
-            </summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.ResolveAsync(System.String,System.Threading.CancellationToken)">
-            <summary>Resolves a YouTube video ID to a <see cref="T:MediaBrowser.Model.Dto.MediaSourceInfo"/> via yt-dlp.</summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.ResolveUrlsAsync(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Returns cached or freshly resolved stream URLs.
-            For combined streams: Audio is null. For DASH (1080p+): both Video and Audio are set.
-            </summary>
-        </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StreamResolverService.ParseConfigHeight">
-            <summary>Returns the configured max height from plugin settings.</summary>
-        </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.StrmService">
             <summary>
             Creates .strm, .nfo and thumbnail files for YouTube videos in the configured output folder.
@@ -367,10 +354,58 @@
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.StrmService"/> class.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StrmService.CreateVideoFilesAsync(System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.Threading.CancellationToken)">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StrmService.SyncChannelAsync(System.String,System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Jellyfin.Plugin.JellyTubbing.Models.YouTubeVideoSnippet,System.TimeSpan}},System.Collections.Generic.ISet{System.String},System.Threading.CancellationToken)">
             <summary>
-            Creates .strm / .nfo / thumbnail for a single video if they do not already exist.
+            Creates .strm / .nfo / thumbnail files for the channel's videos. Skips videos that already
+            have a STRM file in the channel folder (matched by video ID, so renamed titles don't create
+            duplicates) and videos in <paramref name="deletedIds"/>. Returns the number of new videos.
             </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.StrmService.VideoIdFromStrm(System.String)">
+            <summary>Extracts the video ID from the content of a STRM file written by this plugin.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService">
+            <summary>
+            Downloads a YouTube video completely into a local cache the first time it is played and serves
+            it from there afterwards. A finished file supports HTTP range requests, so seeking and resuming
+            work in every client. Files not played for <c>CacheRetentionHours</c> are deleted again.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService.IsValidVideoId(System.String)">
+            <summary>Returns true when the string looks like a YouTube video ID (11 URL-safe characters).</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService.GetOrDownloadAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns the path of the cached video, downloading it first if needed.
+            Concurrent requests for the same video share one download. Cancelling <paramref name="ct"/>
+            only stops waiting; the download itself continues so the next request finds the file.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService.Delete(System.String)">
+            <summary>Deletes a cached video, e.g. after its STRM file was removed as watched.</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService.ResolveYtDlpBinary">
+            <summary>
+            Resolves the yt-dlp binary: configured path, then the copy JellyTube keeps up to date in the
+            plugin configuration folder, then yt-dlp from PATH.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService.VideoIdRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>^[A-Za-z0-9_-]{11}$</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at the beginning of the string.<br/>
+            ○ Match a character in the set [-0-9A-Z_a-z] exactly 11 times.<br/>
+            ○ Match if at the end of the string or if before an ending newline.<br/>
+            </code>
+            </remarks>
         </member>
         <member name="T:Jellyfin.Plugin.JellyTubbing.Services.WatchedStrmCleanupService">
             <summary>
@@ -378,7 +413,7 @@
             (plus their .nfo and thumbnail sidecars) when DeleteWatchedStrm is enabled.
             </summary>
         </member>
-        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.WatchedStrmCleanupService.#ctor(MediaBrowser.Controller.Library.IUserDataManager,MediaBrowser.Controller.Library.ILibraryManager,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.WatchedStrmCleanupService})">
+        <member name="M:Jellyfin.Plugin.JellyTubbing.Services.WatchedStrmCleanupService.#ctor(MediaBrowser.Controller.Library.IUserDataManager,MediaBrowser.Controller.Library.ILibraryManager,Jellyfin.Plugin.JellyTubbing.Services.DeletedVideoList,Jellyfin.Plugin.JellyTubbing.Services.VideoCacheService,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyTubbing.Services.WatchedStrmCleanupService})">
             <summary>
             Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyTubbing.Services.WatchedStrmCleanupService"/> class.
             </summary>
@@ -409,7 +444,52 @@
             <summary>Returns all subscriptions of the authenticated user (paginates automatically).</summary>
         </member>
         <member name="M:Jellyfin.Plugin.JellyTubbing.Services.YouTubeApiService.GetChannelVideosAsync(System.String,System.Int32,System.Threading.CancellationToken)">
-            <summary>Returns the most recent videos from a YouTube channel, optionally excluding Shorts.</summary>
+            <summary>
+            Returns the channel's name and its most recent videos, optionally excluding Shorts.
+            Reads the channel's uploads playlist (1 quota unit per page) instead of search.list
+            (100 units, and its date ordering skips videos). The name is null if the channel lookup failed.
+            </summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.VideoIdRegex_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the VideoIdRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.VideoIdRegex_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.VideoIdRegex_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.VideoIdRegex_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.VideoIdRegex_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.VideoIdRegex_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.VideoIdRegex_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.VideoIdRegex_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.VideoIdRegex_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
         </member>
     </members>
 </doc>

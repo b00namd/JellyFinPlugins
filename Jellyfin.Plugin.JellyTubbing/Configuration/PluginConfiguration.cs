@@ -49,7 +49,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets maximum number of videos to sync per channel.</summary>
     public int MaxVideosPerChannel { get; set; } = 25;
 
-    /// <summary>Gets or sets whether YouTube Shorts (≤ 120 s) are included in the sync.</summary>
+    /// <summary>Gets or sets whether YouTube Shorts (≤ 180 s) are included in the sync.</summary>
     public bool IncludeShorts { get; set; } = false;
 
     /// <summary>Gets or sets whether STRM files are deleted after being watched.</summary>
@@ -62,11 +62,17 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the optional path to the yt-dlp binary.</summary>
     public string YtDlpBinaryPath { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the optional path to the ffmpeg binary (used for 1080p DASH merging).</summary>
+    /// <summary>Gets or sets the optional path to the ffmpeg binary (yt-dlp uses it to merge video and audio).</summary>
     public string FfmpegBinaryPath { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the preferred stream quality (360p, 480p, 720p, 1080p).</summary>
-    public string PreferredQuality { get; set; } = "720p";
+    /// <summary>Gets or sets the maximum video height (360p–1080p; higher values are capped at 1080p).</summary>
+    public string PreferredQuality { get; set; } = "1080p";
+
+    /// <summary>Gets or sets the folder for videos downloaded on playback. Empty = Jellyfin's cache folder.</summary>
+    public string CachePath { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how many hours a cached video is kept after it was last played.</summary>
+    public int CacheRetentionHours { get; set; } = 48;
 
     // -----------------------------------------------------------------------
     // Trending channel view

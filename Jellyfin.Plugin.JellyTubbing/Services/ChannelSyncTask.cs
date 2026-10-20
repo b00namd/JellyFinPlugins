@@ -19,6 +19,7 @@ public class ChannelSyncTask : IScheduledTask
 {
     private readonly YouTubeApiService _youtube;
     private readonly StrmService _strm;
+    private readonly DeletedVideoList _deleted;
     private readonly ILibraryManager _library;
     private readonly ILogger<ChannelSyncTask> _logger;
 
@@ -28,11 +29,13 @@ public class ChannelSyncTask : IScheduledTask
     public ChannelSyncTask(
         YouTubeApiService youtube,
         StrmService strm,
+        DeletedVideoList deleted,
         ILibraryManager library,
         ILogger<ChannelSyncTask> logger)
     {
         _youtube = youtube;
         _strm    = strm;
+        _deleted = deleted;
         _library = library;
         _logger  = logger;
     }
@@ -81,39 +84,32 @@ public class ChannelSyncTask : IScheduledTask
 
         _logger.LogInformation("JellyTubbing sync started for {Count} channel(s).", config.SyncedChannelIds.Length);
 
-        var subs   = await _youtube.GetSubscriptionsAsync(ct);
-        var subMap = subs.ToDictionary(
-            s => s.Snippet.ResourceId.ChannelId,
-            s => s.Snippet.Title);
-
-        var total = config.SyncedChannelIds.Length;
-        var done  = 0;
+        // Channel names come from the API key lookup, not the subscriptions: the OAuth token of a
+        // Google app in testing mode expires after 7 days, which used to rename folders to channel IDs.
+        var deletedIds = _deleted.Load();
+        var total      = config.SyncedChannelIds.Length;
+        var done       = 0;
+        var created    = 0;
 
         foreach (var channelId in config.SyncedChannelIds)
         {
             if (ct.IsCancellationRequested) break;
 
-            var channelName = subMap.TryGetValue(channelId, out var n) ? n : channelId;
             try
             {
-                var videos = await _youtube.GetChannelVideosAsync(channelId, config.MaxVideosPerChannel, ct);
-                foreach (var (videoId, snippet, duration) in videos)
+                var (channelName, videos) = await _youtube.GetChannelVideosAsync(channelId, config.MaxVideosPerChannel, ct);
+                if (string.IsNullOrWhiteSpace(channelName))
                 {
-                    await _strm.CreateVideoFilesAsync(
-                        channelName,
-                        channelId,
-                        videoId,
-                        snippet.Title,
-                        snippet.Description,
-                        snippet.PublishedAt,
-                        snippet.Thumbnails.BestUrl,
-                        (int)duration.TotalSeconds,
-                        ct);
+                    _logger.LogWarning("Skipping channel {ChannelId}: channel could not be looked up (API key or quota?).", channelId);
                 }
-
-                _logger.LogInformation("Synced {Count} videos for {Name}.", videos.Count, channelName);
+                else
+                {
+                    var added = await _strm.SyncChannelAsync(channelName, channelId, videos, deletedIds, ct);
+                    created += added;
+                    _logger.LogInformation("{Name}: {Added} new of {Count} videos.", channelName, added, videos.Count);
+                }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Sync failed for channel {ChannelId}", channelId);
             }
@@ -121,10 +117,11 @@ public class ChannelSyncTask : IScheduledTask
             progress.Report(++done * 100.0 / total);
         }
 
-        _logger.LogInformation("JellyTubbing sync finished.");
+        _logger.LogInformation("JellyTubbing sync finished: {Count} new video(s).", created);
 
         // Trigger library scan so Jellyfin picks up the new STRM files
-        _ = _library.ValidateMediaLibrary(new Progress<double>(), CancellationToken.None);
+        if (created > 0)
+            _library.QueueLibraryScan();
     }
 
     private void EnsureLibraryExists(string strmPath)
@@ -147,6 +144,11 @@ public class ChannelSyncTask : IScheduledTask
             {
                 PathInfos = [new MediaPathInfo { Path = strmPath }],
                 SaveLocalMetadata = true,
+                // Both would read every video and so download all of them into the cache
+                EnableTrickplayImageExtraction         = false,
+                ExtractTrickplayImagesDuringLibraryScan = false,
+                EnableChapterImageExtraction           = false,
+                ExtractChapterImagesDuringLibraryScan  = false,
                 TypeOptions =
                 [
                     new TypeOptions
@@ -154,8 +156,10 @@ public class ChannelSyncTask : IScheduledTask
                         Type                  = "Movie",
                         MetadataFetchers      = ["Nfo"],
                         MetadataFetcherOrder  = ["Nfo"],
-                        ImageFetchers         = ["Image Extractor"],
-                        ImageFetcherOrder     = ["Image Extractor"],
+                        // No "Image Extractor": grabbing a frame would download every video
+                        // into the cache. The sync writes a -thumb.jpg instead.
+                        ImageFetchers         = [],
+                        ImageFetcherOrder     = [],
                     }
                 ]
             };

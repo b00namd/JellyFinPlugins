@@ -105,11 +105,11 @@ $manifestEntries += Build-Plugin `
     -ProjectDir  (Join-Path $PSScriptRoot "Jellyfin.Plugin.JellyTubbing") `
     -AssemblyName "Jellyfin.Plugin.JellyTubbing" `
     -PluginName  "JellyTubbing" `
-    -Description "YouTube-Videos direkt in Jellyfin streamen - via Invidious mit yt-dlp als Fallback." `
-    -Overview    "Nutzt Invidious als primaere Quelle fuer YouTube-Streams. yt-dlp dient als Fallback." `
+    -Description "YouTube-Abos als STRM-Bibliothek in Jellyfin - Videos werden beim ersten Abspielen geladen." `
+    -Overview    "Legt fuer ausgewaehlte YouTube-Abos STRM-Dateien mit NFO und Vorschaubild an. Beim ersten Abspielen laedt yt-dlp das Video (H.264 bis 1080p) in einen Cache, danach funktionieren Spulen und Fortsetzen. Dazu ein Trending-Kanal." `
     -Guid        "c3d4e5f6-a7b8-9012-cdef-012345678901" `
-    -PluginVersion "1.0.1.0" `
-    -Changelog   "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11."
+    -PluginVersion "1.1.0.0" `
+    -Changelog   "Abspielen neu: Videos werden beim ersten Abspielen komplett in einen Cache geladen (H.264 bis 1080p), Spulen und Fortsetzen funktionieren. Kanal-Sync ueber die Upload-Playlist (weniger API-Quota, keine fehlenden Videos), Kanalnamen ohne Google-Anmeldung. Gesehene und geloeschte Videos werden nicht erneut angelegt."
 
 # ============================================================
 # Write combined manifest.json

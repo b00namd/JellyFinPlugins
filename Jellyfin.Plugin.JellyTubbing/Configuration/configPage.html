@@ -162,13 +162,13 @@
                     <div class="inputContainer" style="margin:0;">
                         <label style="display:flex; align-items:center; gap:0.5em; cursor:pointer;">
                             <input id="IncludeShorts" type="checkbox" />
-                            <span>YouTube Shorts einschliessen (&#8804;&nbsp;120&nbsp;s)</span>
+                            <span>YouTube Shorts einschliessen (&#8804;&nbsp;3&nbsp;min)</span>
                         </label>
                     </div>
                     <div class="inputContainer" style="margin:0;">
                         <label style="display:flex; align-items:center; gap:0.5em; cursor:pointer;">
                             <input id="DeleteWatchedStrm" type="checkbox" />
-                            <span>Gesehene Videos automatisch loeschen (STRM + NFO + Thumbnail)</span>
+                            <span>Gesehene Videos automatisch loeschen (STRM, NFO, Thumbnail und Cache; sie werden nicht erneut angelegt)</span>
                         </label>
                     </div>
                 </div>
@@ -190,34 +190,55 @@
                 </div>
             </div>
 
-            <!-- Streaming -->
+            <!-- Abspielen -->
             <div class="jt-section">
-                <h2>Streaming</h2>
+                <h2>Abspielen</h2>
+                <div class="fieldDescription" style="margin-bottom:1em;">
+                    Beim ersten Abspielen laedt yt-dlp das Video komplett in einen Cache. Je nach Laenge und Leitung
+                    dauert der Start einige Sekunden bis wenige Minuten; danach funktionieren Spulen und Fortsetzen
+                    wie bei einer normalen Datei.
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel" for="PreferredQuality">Maximale Qualitaet</label>
+                    <select id="PreferredQuality" is="emby-select" style="max-width:160px;">
+                        <option value="1080p">1080p (Standard)</option>
+                        <option value="720p">720p</option>
+                        <option value="480p">480p</option>
+                        <option value="360p">360p</option>
+                    </select>
+                    <div class="fieldDescription">H.264 + AAC, laeuft auf allen Geraeten ohne Umrechnen. Ueber 1080p bietet YouTube kein H.264 an.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel" for="CacheRetentionHours">Cache aufbewahren (Stunden)</label>
+                    <input id="CacheRetentionHours" type="number" is="emby-input" style="max-width:80px;" min="1" max="8760" />
+                    <div class="fieldDescription">Ein geladenes Video wird so lange nach dem letzten Abspielen behalten. Gesehene Videos werden mit „Gesehene Videos automatisch loeschen“ sofort entfernt.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel" for="CachePath">Cache-Ordner (optional)</label>
+                    <input id="CachePath" type="text" is="emby-input" style="max-width:500px;"
+                           placeholder="Jellyfin-Cache/jellytubbing" />
+                    <div class="fieldDescription">Leer lassen fuer den Cache-Ordner von Jellyfin.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel" for="JellyfinServerUrl">Server-Adresse in den STRM-Dateien</label>
+                    <input id="JellyfinServerUrl" type="text" is="emby-input" style="max-width:500px;"
+                           placeholder="http://localhost:8096" />
+                    <div class="fieldDescription">Unter dieser Adresse holt Jellyfin die Videos ab. Gilt nur fuer neu angelegte STRM-Dateien.</div>
+                </div>
                 <div class="inputContainer">
                     <label class="inputLabel" for="YtDlpBinaryPath">yt-dlp Programmpfad (optional)</label>
                     <input id="YtDlpBinaryPath" type="text" is="emby-input" style="max-width:500px;"
                            placeholder="/usr/local/bin/yt-dlp" />
-                    <div class="fieldDescription">Leer lassen, wenn yt-dlp im PATH liegt.</div>
+                    <div class="fieldDescription">Leer lassen: das von JellyTube aktuell gehaltene yt-dlp, sonst yt-dlp aus dem PATH.</div>
                 </div>
                 <div class="inputContainer">
                     <label class="inputLabel" for="FfmpegBinaryPath">ffmpeg Programmpfad (optional)</label>
                     <input id="FfmpegBinaryPath" type="text" is="emby-input" style="max-width:500px;"
                            placeholder="/usr/lib/jellyfin-ffmpeg/ffmpeg" />
                     <div class="fieldDescription">
-                        Nur fuer 1080p/4K-Streaming benoetigt (DASH-Merge). Leer lassen, wenn ffmpeg im PATH liegt.
-                        Jellyfin's eigenes ffmpeg liegt typischerweise unter <code>/usr/lib/jellyfin-ffmpeg/ffmpeg</code>.
+                        yt-dlp braucht ffmpeg, um Video und Ton zusammenzufuegen. Leer lassen, wenn ffmpeg im PATH liegt.
+                        Jellyfins eigenes ffmpeg liegt typischerweise unter <code>/usr/lib/jellyfin-ffmpeg/ffmpeg</code>.
                     </div>
-                </div>
-                <div class="inputContainer">
-                    <label class="inputLabel" for="PreferredQuality">Bevorzugte Qualitaet</label>
-                    <select id="PreferredQuality" is="emby-select" style="max-width:160px;">
-                        <option value="2160p">4K (2160p)</option>
-                        <option value="1440p">2K (1440p)</option>
-                        <option value="1080p">1080p</option>
-                        <option value="720p">720p (Standard)</option>
-                        <option value="480p">480p</option>
-                        <option value="360p">360p</option>
-                    </select>
                 </div>
             </div>
 

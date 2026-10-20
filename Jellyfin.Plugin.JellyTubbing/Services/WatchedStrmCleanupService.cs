@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,8 @@ public class WatchedStrmCleanupService : IHostedService
 {
     private readonly IUserDataManager _userDataManager;
     private readonly ILibraryManager _libraryManager;
+    private readonly DeletedVideoList _deleted;
+    private readonly VideoCacheService _cache;
     private readonly ILogger<WatchedStrmCleanupService> _logger;
 
     /// <summary>
@@ -22,10 +25,14 @@ public class WatchedStrmCleanupService : IHostedService
     public WatchedStrmCleanupService(
         IUserDataManager userDataManager,
         ILibraryManager libraryManager,
+        DeletedVideoList deleted,
+        VideoCacheService cache,
         ILogger<WatchedStrmCleanupService> logger)
     {
         _userDataManager = userDataManager;
         _libraryManager  = libraryManager;
+        _deleted         = deleted;
+        _cache           = cache;
         _logger          = logger;
     }
 
@@ -64,8 +71,24 @@ public class WatchedStrmCleanupService : IHostedService
             !filePath.StartsWith(config.StrmOutputPath, StringComparison.OrdinalIgnoreCase))
             return;
 
+        if (!File.Exists(filePath))
+            return;
+
         _logger.LogInformation("Watched STRM '{Path}', deleting with sidecars.", filePath);
+
+        string? videoId = null;
+        try { videoId = StrmService.VideoIdFromStrm(File.ReadAllText(filePath)); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Could not read '{Path}'.", filePath); }
+
         DeleteWithSidecars(filePath);
+
+        if (videoId is not null)
+        {
+            // Otherwise the next sync recreates it while it is still among the channel's newest videos
+            _deleted.Add(videoId);
+            _cache.Delete(videoId);
+        }
+
         _libraryManager.QueueLibraryScan();
     }
 
@@ -78,7 +101,17 @@ public class WatchedStrmCleanupService : IHostedService
 
         TryDelete(strmPath);
 
-        foreach (var sidecar in Directory.EnumerateFiles(dir, $"{baseName}.*"))
+        // Prefix match instead of a search pattern, and including the "-thumb.jpg" the sync writes
+        var sidecars = Directory.EnumerateFiles(dir)
+            .Where(f =>
+            {
+                var name = Path.GetFileName(f);
+                return name.StartsWith(baseName + ".", StringComparison.Ordinal)
+                    || name.StartsWith(baseName + "-thumb.", StringComparison.Ordinal);
+            })
+            .ToList();
+
+        foreach (var sidecar in sidecars)
         {
             if (!string.Equals(sidecar, strmPath, StringComparison.OrdinalIgnoreCase))
                 TryDelete(sidecar);

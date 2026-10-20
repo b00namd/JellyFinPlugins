@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTubbing.Services;
+using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -29,9 +30,8 @@ public class JellyTubbingController : ControllerBase
 {
     private readonly OAuthService _oauth;
     private readonly YouTubeApiService _youtube;
-    private readonly StreamResolverService _resolver;
-    private readonly HlsTranscodeService _hls;
-    private readonly ChannelSyncTask _sync;
+    private readonly VideoCacheService _cache;
+    private readonly ITaskManager _taskManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyTubbingController"/> class.
@@ -39,15 +39,13 @@ public class JellyTubbingController : ControllerBase
     public JellyTubbingController(
         OAuthService oauth,
         YouTubeApiService youtube,
-        StreamResolverService resolver,
-        HlsTranscodeService hls,
-        ChannelSyncTask sync)
+        VideoCacheService cache,
+        ITaskManager taskManager)
     {
-        _oauth    = oauth;
-        _youtube  = youtube;
-        _resolver = resolver;
-        _hls      = hls;
-        _sync     = sync;
+        _oauth       = oauth;
+        _youtube     = youtube;
+        _cache       = cache;
+        _taskManager = taskManager;
     }
 
     // -----------------------------------------------------------------------
@@ -80,7 +78,7 @@ public class JellyTubbingController : ControllerBase
     {
         var config = Plugin.Instance?.Configuration;
 
-        var ytdlpBin = string.IsNullOrWhiteSpace(config?.YtDlpBinaryPath) ? "yt-dlp" : config.YtDlpBinaryPath;
+        var ytdlpBin = VideoCacheService.ResolveYtDlpBinary();
         var ffmpegBin = string.IsNullOrWhiteSpace(config?.FfmpegBinaryPath) ? "ffmpeg" : config.FfmpegBinaryPath;
 
         var (ytDlpOk, ytDlpVer, ytDlpErr)   = await TryGetVersionAsync(ytdlpBin,  "--version");
@@ -180,116 +178,40 @@ public class JellyTubbingController : ControllerBase
     /// <summary>Triggers an immediate sync of all configured channels.</summary>
     [HttpPost("sync")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-    public IActionResult TriggerSync(CancellationToken ct)
+    public IActionResult TriggerSync()
     {
-        _ = _sync.ExecuteAsync(new Progress<double>(), ct);
+        // Runs as the scheduled task, so it is not tied to this request and shows progress in the dashboard
+        _taskManager.QueueScheduledTask<ChannelSyncTask>();
         return Ok(new { success = true, message = "Synchronisation gestartet." });
     }
 
     // -----------------------------------------------------------------------
-    // Stream redirect (STRM playback)
+    // Stream (STRM playback)
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Resolves a YouTube video and delivers it to the client.
-    /// Combined streams: 302 redirect to YouTube CDN.
-    /// DASH streams: ffmpeg merges video+audio CDN URLs and pipes fragmented MP4.
+    /// Delivers a YouTube video for STRM playback. The first request downloads the video completely
+    /// into the cache (it waits until the download is done); later requests are served from disk
+    /// with range support, so seeking and resuming work.
     /// </summary>
     [HttpGet("stream/{videoId}")]
+    [HttpHead("stream/{videoId}")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status302Found)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status206PartialContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
     public async Task<IActionResult> StreamVideo(string videoId, CancellationToken ct)
     {
-        var (videoUrl, audioUrl) = await _resolver.ResolveUrlsAsync(videoId, ct);
+        if (!VideoCacheService.IsValidVideoId(videoId))
+            return BadRequest(new { message = "Ungueltige Video-ID." });
 
-        if (string.IsNullOrEmpty(videoUrl))
-            return NotFound(new { message = $"Stream fuer {videoId} konnte nicht aufgeloest werden." });
-
-        // Combined stream: direct redirect to YouTube CDN
-        if (string.IsNullOrEmpty(audioUrl))
-            return Redirect(videoUrl);
-
-        // DASH: merge the already-resolved CDN URLs with ffmpeg → fragmented MP4
-        var config = Plugin.Instance!.Configuration;
-        var ffmpegBin = string.IsNullOrWhiteSpace(config.FfmpegBinaryPath)
-            ? (System.IO.File.Exists("/usr/lib/jellyfin-ffmpeg/ffmpeg") ? "/usr/lib/jellyfin-ffmpeg/ffmpeg" : "ffmpeg")
-            : config.FfmpegBinaryPath;
-
-        var psi = new ProcessStartInfo
-        {
-            FileName               = ffmpegBin,
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-            CreateNoWindow         = true,
-        };
-        psi.ArgumentList.Add("-hide_banner");
-        psi.ArgumentList.Add("-loglevel");           psi.ArgumentList.Add("error");
-        psi.ArgumentList.Add("-i");                  psi.ArgumentList.Add(videoUrl);
-        psi.ArgumentList.Add("-i");                  psi.ArgumentList.Add(audioUrl);
-        psi.ArgumentList.Add("-c:v");                psi.ArgumentList.Add("copy");
-        psi.ArgumentList.Add("-c:a");                psi.ArgumentList.Add("aac");
-        psi.ArgumentList.Add("-b:a");                psi.ArgumentList.Add("192k");
-        psi.ArgumentList.Add("-f");                  psi.ArgumentList.Add("mpegts");
-        psi.ArgumentList.Add("pipe:1");
-
-        var proc = new Process { StartInfo = psi };
-        proc.Start();
-
-        ct.Register(() =>
-        {
-            try { if (!proc.HasExited) proc.Kill(); } catch { /* ignored */ }
-            proc.Dispose();
-        });
-
-        Response.Headers["X-Accel-Buffering"] = "no";
-        return new FileStreamResult(proc.StandardOutput.BaseStream, "video/mp2t");
-    }
-
-    // -----------------------------------------------------------------------
-    // HLS endpoints (1080p+ DASH streams)
-    // -----------------------------------------------------------------------
-
-    /// <summary>
-    /// Returns the HLS playlist for a DASH video.
-    /// Starts ffmpeg transcoding in the background if not already running.
-    /// </summary>
-    [HttpGet("hls/{videoId}/index.m3u8")]
-    [AllowAnonymous]
-    [Produces("application/vnd.apple.mpegurl")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<IActionResult> GetHlsPlaylist(string videoId, CancellationToken ct)
-    {
-        var (videoUrl, audioUrl) = await _resolver.ResolveUrlsAsync(videoId, ct);
-
-        if (string.IsNullOrEmpty(videoUrl) || string.IsNullOrEmpty(audioUrl))
-            return NotFound(new { message = $"DASH-URLs fuer {videoId} nicht verfuegbar." });
-
-        var playlistPath = await _hls.EnsureReadyAsync(videoId, videoUrl, audioUrl, ct);
-        if (playlistPath is null)
-            return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                new { message = "HLS-Transcodierung konnte nicht gestartet werden." });
-
-        var content = await System.IO.File.ReadAllTextAsync(playlistPath, ct);
-        return Content(content, "application/vnd.apple.mpegurl");
-    }
-
-    /// <summary>Serves an individual HLS segment (.ts file), waiting up to 15 s for it to be written.</summary>
-    [HttpGet("hls/{videoId}/{segment}")]
-    [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetHlsSegment(string videoId, string segment, CancellationToken ct)
-    {
-        var path = await _hls.GetFilePathAsync(videoId, segment, ct);
+        var path = await _cache.GetOrDownloadAsync(videoId, ct);
         if (path is null)
-            return NotFound();
+            return StatusCode(StatusCodes.Status502BadGateway,
+                new { message = $"Video {videoId} konnte nicht geladen werden (siehe Jellyfin-Log)." });
 
-        return PhysicalFile(path, "video/mp2t");
+        return PhysicalFile(path, "video/mp4", enableRangeProcessing: true);
     }
 
     // -----------------------------------------------------------------------

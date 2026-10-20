@@ -25,6 +25,9 @@ public class YouTubeVideoSnippet
     [JsonPropertyName("publishedAt")] public string PublishedAt { get; set; } = string.Empty;
     [JsonPropertyName("channelTitle")] public string ChannelTitle { get; set; } = string.Empty;
     [JsonPropertyName("thumbnails")] public YouTubeThumbnails Thumbnails { get; set; } = new();
+
+    /// <summary>"none" for regular videos, "live" or "upcoming" for streams and premieres.</summary>
+    [JsonPropertyName("liveBroadcastContent")] public string LiveBroadcastContent { get; set; } = "none";
 }
 
 /// <summary>Content details block of a YouTube video.</summary>
@@ -79,22 +82,53 @@ public class YouTubeResourceId
     [JsonPropertyName("channelId")] public string ChannelId { get; set; } = string.Empty;
 }
 
-/// <summary>YouTube Data API v3 – search.list response.</summary>
-public class YouTubeSearchListResponse
+/// <summary>YouTube Data API v3 – channels.list response.</summary>
+public class YouTubeChannelListResponse
 {
-    [JsonPropertyName("items")] public YouTubeSearchItem[] Items { get; set; } = [];
+    [JsonPropertyName("items")] public YouTubeChannelItem[] Items { get; set; } = [];
+}
+
+/// <summary>A single channel item.</summary>
+public class YouTubeChannelItem
+{
+    [JsonPropertyName("snippet")] public YouTubeChannelSnippet Snippet { get; set; } = new();
+    [JsonPropertyName("contentDetails")] public YouTubeChannelContentDetails ContentDetails { get; set; } = new();
+}
+
+/// <summary>Snippet of a channel.</summary>
+public class YouTubeChannelSnippet
+{
+    [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
+}
+
+/// <summary>Content details of a channel.</summary>
+public class YouTubeChannelContentDetails
+{
+    [JsonPropertyName("relatedPlaylists")] public YouTubeRelatedPlaylists RelatedPlaylists { get; set; } = new();
+}
+
+/// <summary>Playlists belonging to a channel.</summary>
+public class YouTubeRelatedPlaylists
+{
+    /// <summary>ID of the playlist holding all uploads, newest first.</summary>
+    [JsonPropertyName("uploads")] public string Uploads { get; set; } = string.Empty;
+}
+
+/// <summary>YouTube Data API v3 – playlistItems.list response.</summary>
+public class YouTubePlaylistItemListResponse
+{
+    [JsonPropertyName("items")] public YouTubePlaylistItem[] Items { get; set; } = [];
     [JsonPropertyName("nextPageToken")] public string? NextPageToken { get; set; }
 }
 
-/// <summary>A single search result item.</summary>
-public class YouTubeSearchItem
+/// <summary>A single playlist item.</summary>
+public class YouTubePlaylistItem
 {
-    [JsonPropertyName("id")] public YouTubeSearchItemId Id { get; set; } = new();
-    [JsonPropertyName("snippet")] public YouTubeVideoSnippet Snippet { get; set; } = new();
+    [JsonPropertyName("contentDetails")] public YouTubePlaylistItemContentDetails ContentDetails { get; set; } = new();
 }
 
-/// <summary>The id block of a search result.</summary>
-public class YouTubeSearchItemId
+/// <summary>Content details of a playlist item.</summary>
+public class YouTubePlaylistItemContentDetails
 {
     [JsonPropertyName("videoId")] public string VideoId { get; set; } = string.Empty;
 }

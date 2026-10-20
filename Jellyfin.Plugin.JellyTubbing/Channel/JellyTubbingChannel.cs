@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.MediaInfo;
 
 namespace Jellyfin.Plugin.JellyTubbing.Channel;
 
@@ -18,15 +19,13 @@ namespace Jellyfin.Plugin.JellyTubbing.Channel;
 public class JellyTubbingChannel : IChannel
 {
     private readonly YouTubeApiService _youtube;
-    private readonly StreamResolverService _resolver;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyTubbingChannel"/> class.
     /// </summary>
-    public JellyTubbingChannel(YouTubeApiService youtube, StreamResolverService resolver)
+    public JellyTubbingChannel(YouTubeApiService youtube)
     {
-        _youtube  = youtube;
-        _resolver = resolver;
+        _youtube = youtube;
     }
 
     /// <inheritdoc />
@@ -107,9 +106,27 @@ public class JellyTubbingChannel : IChannel
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<MediaSourceInfo>> GetChannelItemMediaInfo(string id, CancellationToken ct)
+    public Task<IEnumerable<MediaSourceInfo>> GetChannelItemMediaInfo(string id, CancellationToken ct)
     {
         var videoId = id.StartsWith("YT:", StringComparison.Ordinal) ? id[3..] : id;
-        return await _resolver.ResolveAsync(videoId, ct);
+        if (!VideoCacheService.IsValidVideoId(videoId))
+            return Task.FromResult<IEnumerable<MediaSourceInfo>>(Array.Empty<MediaSourceInfo>());
+
+        // Same endpoint as the STRM files: downloads into the cache on first play
+        var serverUrl = (Plugin.Instance?.Configuration.JellyfinServerUrl ?? "http://localhost:8096").TrimEnd('/');
+        var source = new MediaSourceInfo
+        {
+            Id                   = videoId,
+            Name                 = "YouTube",
+            Path                 = $"{serverUrl}/api/jellytubbing/stream/{videoId}",
+            Protocol             = MediaProtocol.Http,
+            IsRemote             = true,
+            Container            = "mp4",
+            SupportsDirectPlay   = true,
+            SupportsDirectStream = true,
+            SupportsTranscoding  = true,
+            Type                 = MediaSourceType.Default,
+        };
+        return Task.FromResult<IEnumerable<MediaSourceInfo>>(new[] { source });
     }
 }

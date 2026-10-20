@@ -20,8 +20,8 @@ public class ServiceRegistrator : IPluginServiceRegistrator
 
         serviceCollection.AddSingleton<OAuthService>();
         serviceCollection.AddSingleton<YouTubeApiService>();
-        serviceCollection.AddSingleton<StreamResolverService>();
-        serviceCollection.AddSingleton<HlsTranscodeService>();
+        serviceCollection.AddSingleton<VideoCacheService>();
+        serviceCollection.AddSingleton<DeletedVideoList>();
         serviceCollection.AddSingleton<StrmService>();
         serviceCollection.AddSingleton<ChannelSyncTask>();
 
