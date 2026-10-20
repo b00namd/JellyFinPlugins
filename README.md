@@ -1,28 +1,37 @@
 # JellyTube – Jellyfin Plugin
 
-Lädt YouTube-Videos und Playlists direkt in die Mediathek. Nutzt [yt-dlp](https://github.com/yt-dlp/yt-dlp) für den Download und erstellt automatisch NFO-Metadaten sowie Vorschaubilder.
+Lädt YouTube-Videos, Playlists und Kanäle in die Jellyfin-Mediathek – manuell oder automatisch per Zeitplan. Nutzt [yt-dlp](https://github.com/yt-dlp/yt-dlp) für den Download (das Plugin hält yt-dlp selbst aktuell) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel.
 
 ---
 
 ## Features
 
-- Videos und Playlists per URL herunterladen
-- Metadaten-Vorschau vor dem Download
+**Download**
+- Videos, Playlists und Kanäle per URL herunterladen, mit Metadaten-Vorschau
+- Qualitätsprofile von 480p bis 4K (H.264 + AAC bevorzugt für Direct-Play), nur Audio oder eigener Format-String
+- YouTube-Kapitel einbetten, Untertitel herunterladen (mehrere Sprachen)
+- Standard-Audiosprache (ISO 639-2, z. B. `deu`) wird in die Audiospur eingebettet
+- Shorts bei Kanal-Downloads ausschließen
+- Cookies-Datei für Inhalte, die eine Anmeldung erfordern
+- Automatische Wiederholung fehlgeschlagener Downloads, erzwungenes erneutes Herunterladen
+
+**Mediathek**
 - NFO-Dateien und Vorschaubilder automatisch generieren
 - Nach Kanal in Unterordner sortieren
-- Untertitel herunterladen (mehrere Sprachen)
-- Download-Warteschlange mit Fortschrittsanzeige, Laufzeitanzeige und sofortigem Start
-- Aktive und wartende Jobs einzeln abbrechen
-- Abgeschlossene Jobs per Knopfdruck leeren
-- Jellyfin-Bibliothek nach Download automatisch aktualisieren
-- Geplante Playlist-Downloads per Scheduled Task
-- Pro geplantem Download: eigenes Maximalalter und „Gesehen löschen"-Option
-- Archiv für geplante Downloads – bereits heruntergeladene Videos werden übersprungen
-- Archiv zurücksetzen direkt im Plugin möglich
-- Smarter Kanal-Scan: stoppt beim ersten bereits archivierten oder zu alten Video (`--break-on-existing`, `--break-on-reject`)
-- Standard-Audiosprache konfigurierbar (ISO 639-2, z. B. `deu`) – wird als Sprachmetadaten in die Audiodatei eingebettet
+- Kanäle als Serien: automatische Downloads landen in „Season 1“, manuell geladene Playlists werden eine eigene Staffel
+- Jellyfin-Bibliothek nach dem Download automatisch aktualisieren
+
+**Automatisierung**
+- Geplante Playlist-/Kanal-Downloads per Scheduled Task, pro Eintrag mit Zielordner, Maximalalter und „Gesehen löschen“
+- Download-Archiv: bereits geladene Videos werden übersprungen; Archiv zurücksetzen oder mit den vorhandenen Dateien abgleichen
+- Smarter Kanal-Scan mit einstellbarer Scantiefe: stoppt beim ersten bereits archivierten oder zu alten Video
+- Gesehene Videos nach einer Karenzzeit automatisch löschen – egal ob manuell oder von Jellyfin automatisch als gesehen markiert
+- yt-dlp wird wöchentlich automatisch aktualisiert (Scheduled Task „Update yt-dlp Binary“)
+
+**Oberfläche**
+- Download-Warteschlange mit Fortschritts- und Laufzeitanzeige, Jobs einzeln oder alle abbrechen
+- Verfügbarkeitscheck für yt-dlp und ffmpeg in den Einstellungen
 - Verwaiste yt-dlp-Prozesse werden beim Neustart automatisch beendet
-- yt-dlp und ffmpeg Verfügbarkeitscheck in den Einstellungen
 - Vollständig auf Deutsch
 
 ---
@@ -32,20 +41,25 @@ Lädt YouTube-Videos und Playlists direkt in die Mediathek. Nutzt [yt-dlp](https
 | Einstellung | Beschreibung |
 |---|---|
 | Download-Pfad | Basisverzeichnis für heruntergeladene Videos |
-| yt-dlp Programmpfad | Optionaler vollständiger Pfad zur yt-dlp-Binary |
-| ffmpeg Programmpfad | Optionaler vollständiger Pfad zur ffmpeg-Binary |
-| Videoformat | Voreinstellung oder benutzerdefinierter yt-dlp Format-String |
+| yt-dlp Programmpfad | Optional; leer = vom Plugin verwaltetes yt-dlp, sonst yt-dlp aus dem PATH |
+| ffmpeg Programmpfad | Optional; leer = ffmpeg aus dem PATH (im Jellyfin-Docker-Image: `/usr/lib/jellyfin-ffmpeg/ffmpeg`) |
+| Videoformat | Qualitätsprofil oder benutzerdefinierter yt-dlp Format-String |
 | Bevorzugter Container | MP4, MKV oder WebM |
 | Max. gleichzeitige Downloads | 1–10 |
+| Wiederholungsversuche | Wie oft ein fehlgeschlagener Download erneut versucht wird |
+| Kanal-Scantiefe | Wie viele Videos pro Lauf eines Kanals geprüft werden |
 | Nach Kanal sortieren | Erstellt Unterordner pro Kanal |
+| Kanäle als Serien darstellen | Kanal = Serie, Videos = Episoden (Mediathek vom Typ „Serien“ nötig) |
+| YouTube-Kapitel einbetten | Kapitelmarken in die Videodatei schreiben |
+| Shorts ausschließen | Shorts bei Kanal-Downloads überspringen |
 | Untertitel herunterladen | Inkl. Sprachauswahl |
+| Cookies-Datei | Für altersbeschränkte oder Mitglieder-Inhalte |
+| Standard-Audiosprache | ISO 639-2 Sprachcode (z. B. `deu`), der in die Audiometadaten eingebettet wird |
 | NFO-Dateien schreiben | Metadaten für Jellyfin |
 | Vorschaubilder herunterladen | Thumbnails speichern |
 | Bibliothek aktualisieren | Scan nach Download |
-| Standard-Audiosprache | ISO 639-2 Sprachcode (z. B. `deu`), der in die Audiometadaten eingebettet wird |
-| Geplante Downloads | Playlists automatisch prüfen, inkl. Maximalalter und „Gesehen löschen" pro Eintrag |
-| Max. Videoalter (Playlist) | Globales Limit: nur Videos der letzten N Tage herunterladen |
-| Gesehene Videos löschen | Nur für geplante Downloads: Datei nach dem Schauen löschen, kein erneuter Download |
+| Gesehene Videos löschen | Getrennt für manuelle und geplante Downloads, mit Karenzzeit in Tagen |
+| Geplante Downloads | Playlists/Kanäle automatisch prüfen, pro Eintrag mit Zielordner, Maximalalter und „Gesehen löschen“ |
 
 ---
 
@@ -74,10 +88,9 @@ Nach der Installation muss Jellyfin neu gestartet werden.
 ## Voraussetzungen
 
 - Jellyfin 10.9.x oder neuer
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) auf dem Server installiert
-- [ffmpeg](https://ffmpeg.org/) für Containerkonvertierung (mp4/mkv)
+- [ffmpeg](https://ffmpeg.org/) zum Zusammenführen von Video und Audio sowie für Containerkonvertierung (mp4/mkv)
 
-yt-dlp und ffmpeg können entweder im Systempfad (PATH) liegen oder der vollständige Pfad wird in den Plugin-Einstellungen angegeben.
+yt-dlp muss nicht installiert sein: Der Scheduled Task „Update yt-dlp Binary“ lädt es in den Plugin-Konfigurationsordner und hält es aktuell (läuft sonntags um 3 Uhr – nach der Installation einmal manuell unter **Dashboard → Geplante Aufgaben** starten). Alternativ kann ein eigenes yt-dlp im PATH oder per Pfad in den Einstellungen verwendet werden. ffmpeg muss im Systempfad (PATH) liegen oder der vollständige Pfad wird in den Plugin-Einstellungen angegeben.
 
 ---
 

@@ -34,7 +34,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override Guid Id => Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     /// <inheritdoc />
-    public override string Description => "Download YouTube videos and playlists into your Jellyfin library with metadata.";
+    public override string Description => "YouTube-Videos, Playlists und Kanäle in die Jellyfin-Mediathek herunterladen – manuell oder automatisch per Zeitplan.";
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
