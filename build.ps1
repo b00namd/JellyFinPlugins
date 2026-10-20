@@ -95,8 +95,8 @@ $manifestEntries += Build-Plugin `
     -Description "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan." `
     -Overview    "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen." `
     -Guid        "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-    -PluginVersion "1.0.2.0" `
-    -Changelog   "Tools-Check erkennt das vom Plugin verwaltete yt-dlp. Serien-Modus: automatische Downloads in einer Staffel 'Season 1', manuelle Playlists als eigene Staffel. Automatisch als gesehen markierte Videos starten ebenfalls den Loesch-Timer."
+    -PluginVersion "1.0.3.0" `
+    -Changelog   "Behebt Fehler 401 auf der Plugin-Seite unter Jellyfin 10.11 (Tools-Check, Warteschlange, Downloads). Tools-Check erkennt das vom Plugin verwaltete yt-dlp. Serien-Modus: automatische Downloads in einer Staffel 'Season 1', manuelle Playlists als eigene Staffel. Automatisch als gesehen markierte Videos starten ebenfalls den Loesch-Timer."
 
 # ============================================================
 # Build JellyTubbing
