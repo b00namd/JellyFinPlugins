@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyTubbing.Services;
@@ -16,7 +18,7 @@ namespace Jellyfin.Plugin.JellyTubbing.Channel;
 /// Jellyfin channel that shows YouTube trending videos via the YouTube Data API.
 /// Subscribed channels are synced separately as STRM files via <see cref="ChannelSyncTask"/>.
 /// </summary>
-public class JellyTubbingChannel : IChannel
+public class JellyTubbingChannel : IChannel, IRequiresMediaInfoCallback
 {
     private readonly YouTubeApiService _youtube;
 
@@ -116,7 +118,8 @@ public class JellyTubbingChannel : IChannel
         var serverUrl = (Plugin.Instance?.Configuration.JellyfinServerUrl ?? "http://localhost:8096").TrimEnd('/');
         var source = new MediaSourceInfo
         {
-            Id                   = videoId,
+            // Jellyfin parses the media source ID as a GUID (HLS playlist), so derive a stable one
+            Id                   = new Guid(MD5.HashData(Encoding.UTF8.GetBytes("jellytubbing:" + videoId))).ToString("N"),
             Name                 = "YouTube",
             Path                 = $"{serverUrl}/api/jellytubbing/stream/{videoId}",
             Protocol             = MediaProtocol.Http,
