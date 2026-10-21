@@ -108,8 +108,8 @@ $manifestEntries += Build-Plugin `
     -Description "YouTube-Abos als STRM-Bibliothek in Jellyfin - Videos werden beim ersten Abspielen geladen." `
     -Overview    "Legt fuer ausgewaehlte YouTube-Abos STRM-Dateien mit NFO und Vorschaubild an. Beim ersten Abspielen laedt yt-dlp das Video (H.264 bis 1080p) in einen Cache, danach funktionieren Spulen und Fortsetzen. Dazu ein Trending-Kanal." `
     -Guid        "c3d4e5f6-a7b8-9012-cdef-012345678901" `
-    -PluginVersion "1.1.1.0" `
-    -Changelog   "Behebt den Wiedergabefehler bei Videos im Kanal JellyTrending."
+    -PluginVersion "1.1.2.0" `
+    -Changelog   "JellyTrending zeigt Bilder: das Plugin-Logo fuer den Kanal und das Vorschaubild des aktuell ersten Videos fuer jede Kategorie. Trending-Listen werden 30 Minuten zwischengespeichert."
 
 # ============================================================
 # Write combined manifest.json

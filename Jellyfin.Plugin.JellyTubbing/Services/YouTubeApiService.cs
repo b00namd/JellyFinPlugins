@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -19,6 +20,10 @@ namespace Jellyfin.Plugin.JellyTubbing.Services;
 public class YouTubeApiService
 {
     private const string Base = "https://www.googleapis.com/youtube/v3";
+
+    private static readonly TimeSpan TrendingCacheTime = TimeSpan.FromMinutes(30);
+
+    private readonly ConcurrentDictionary<string, (DateTime Fetched, List<ChannelItemInfo> Items)> _trendingCache = new();
 
     private readonly IHttpClientFactory _http;
     private readonly OAuthService _oauth;
@@ -53,6 +58,12 @@ public class YouTubeApiService
         }
 
         var region = Plugin.Instance?.Configuration.TrendingRegion ?? "DE";
+
+        // The channel overview fetches every category for its folder images, so keep results a while
+        var cacheKey = $"{region}:{categoryId}";
+        if (_trendingCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow - cached.Fetched < TrendingCacheTime)
+            return cached.Items;
+
         var url = $"{Base}/videos?part=snippet,contentDetails&chart=mostPopular" +
                   $"&regionCode={Uri.EscapeDataString(region)}&maxResults=50&key={Uri.EscapeDataString(ApiKey)}";
         if (!string.IsNullOrEmpty(categoryId))
@@ -62,7 +73,10 @@ public class YouTubeApiService
         {
             var client = _http.CreateClient("jellytubbing");
             var resp = await client.GetFromJsonAsync<YouTubeVideoListResponse>(url, ct);
-            return resp?.Items.Select(MapVideoToChannelItem).ToList() ?? new();
+            var items = resp?.Items.Select(MapVideoToChannelItem).ToList() ?? new();
+            if (items.Count > 0)
+                _trendingCache[cacheKey] = (DateTime.UtcNow, items);
+            return items;
         }
         catch (Exception ex)
         {

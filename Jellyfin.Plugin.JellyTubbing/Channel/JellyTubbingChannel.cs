@@ -8,6 +8,7 @@ using Jellyfin.Plugin.JellyTubbing.Services;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Channels;
+using MediaBrowser.Model.Drawing;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.MediaInfo;
@@ -37,7 +38,7 @@ public class JellyTubbingChannel : IChannel, IRequiresMediaInfoCallback
     public string Description => "YouTube-Trending direkt in Jellyfin.";
 
     /// <inheritdoc />
-    public string DataVersion => "3";
+    public string DataVersion => "4";
 
     /// <inheritdoc />
     public string HomePageUrl => string.Empty;
@@ -57,11 +58,16 @@ public class JellyTubbingChannel : IChannel, IRequiresMediaInfoCallback
     public bool IsEnabledFor(string userId) => true;
 
     /// <inheritdoc />
-    public IEnumerable<ImageType> GetSupportedChannelImages() => Array.Empty<ImageType>();
+    public IEnumerable<ImageType> GetSupportedChannelImages() => new[] { ImageType.Primary, ImageType.Thumb };
 
     /// <inheritdoc />
     public Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken ct)
-        => Task.FromResult(new DynamicImageResponse { HasImage = false });
+    {
+        var stream = GetType().Assembly.GetManifestResourceStream("Jellyfin.Plugin.JellyTubbing.thumb.png");
+        return Task.FromResult(stream is null
+            ? new DynamicImageResponse { HasImage = false }
+            : new DynamicImageResponse { HasImage = true, Stream = stream, Format = ImageFormat.Png });
+    }
 
     // -----------------------------------------------------------------------
     // Category folders
@@ -82,15 +88,22 @@ public class JellyTubbingChannel : IChannel, IRequiresMediaInfoCallback
     {
         var region = Plugin.Instance?.Configuration.TrendingRegion ?? "DE";
 
-        // Root – show category folders
+        // Root – show category folders, each with the thumbnail of its current top video
         if (string.IsNullOrEmpty(query.FolderId))
         {
-            var folders = Array.ConvertAll(Categories, c => new ChannelItemInfo
+            var topVideos = await Task.WhenAll(Array.ConvertAll(Categories, c => _youtube.GetTrendingAsync(c.CategoryId, ct)));
+            var folders = new ChannelItemInfo[Categories.Length];
+            for (var i = 0; i < Categories.Length; i++)
             {
-                Id   = c.Id,
-                Name = $"{c.Label} ({region})",
-                Type = ChannelItemType.Folder,
-            });
+                folders[i] = new ChannelItemInfo
+                {
+                    Id       = Categories[i].Id,
+                    Name     = $"{Categories[i].Label} ({region})",
+                    Type     = ChannelItemType.Folder,
+                    ImageUrl = topVideos[i].Count > 0 ? topVideos[i][0].ImageUrl : null,
+                };
+            }
+
             return new ChannelItemResult { Items = folders, TotalRecordCount = folders.Length };
         }
 

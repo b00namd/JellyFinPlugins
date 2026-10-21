@@ -1,40 +1,40 @@
 [
   {
-    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTube/thumb.png",
     "description": "YouTube-Videos, Playlists und Kanaele in die Jellyfin-Mediathek herunterladen - manuell oder automatisch per Zeitplan.",
-    "name": "JellyTube",
     "overview": "Laedt YouTube-Inhalte mit yt-dlp (wird vom Plugin selbst aktuell gehalten) und erstellt NFO-Metadaten, Vorschaubilder und Kapitel. Kanaele koennen als Serien angelegt werden, geplante Downloads holen neue Videos automatisch und gesehene Videos lassen sich nach einer Karenzzeit automatisch loeschen.",
     "category": "General",
+    "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "owner": "local",
+    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTube/thumb.png",
     "versions": [
       {
-        "version": "1.0.5.0",
-        "checksum": "1b663bce8d2e60c4facbe5ffb09ab339",
-        "targetAbi": "10.9.0.0",
+        "timestamp": "2026-10-21T07:40:06Z",
         "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTube_1.0.5.0.zip",
-        "timestamp": "2026-10-21T07:37:10Z",
+        "targetAbi": "10.9.0.0",
+        "checksum": "739bb39656d42060d6d8ec872ae3347a",
+        "version": "1.0.5.0",
         "changelog": "Neue Einstellung 'Pausen zwischen Anfragen' (standardmaessig an): yt-dlp wartet zwischen Anfragen und Downloads, Downloads laufen dann nacheinander, damit YouTube den Server nicht voruebergehend sperrt."
       }
     ],
-    "owner": "local",
-    "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    "name": "JellyTube"
   },
   {
-    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTubbing/thumb.png",
     "description": "YouTube-Abos als STRM-Bibliothek in Jellyfin - Videos werden beim ersten Abspielen geladen.",
-    "name": "JellyTubbing",
     "overview": "Legt fuer ausgewaehlte YouTube-Abos STRM-Dateien mit NFO und Vorschaubild an. Beim ersten Abspielen laedt yt-dlp das Video (H.264 bis 1080p) in einen Cache, danach funktionieren Spulen und Fortsetzen. Dazu ein Trending-Kanal.",
     "category": "General",
+    "guid": "c3d4e5f6-a7b8-9012-cdef-012345678901",
+    "owner": "local",
+    "imageUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/Jellyfin.Plugin.JellyTubbing/thumb.png",
     "versions": [
       {
-        "version": "1.1.1.0",
-        "checksum": "66a41b5ea12a745bcec8eb76b5471c2a",
+        "timestamp": "2026-10-21T07:40:06Z",
+        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.1.2.0.zip",
         "targetAbi": "10.9.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/b00namd/JellyFinPlugins/master/dist/Jellyfin.Plugin.JellyTubbing_1.1.1.0.zip",
-        "timestamp": "2026-10-21T07:37:10Z",
-        "changelog": "Behebt den Wiedergabefehler bei Videos im Kanal JellyTrending."
+        "checksum": "696afc68417308366e53d4d896188ed0",
+        "version": "1.1.2.0",
+        "changelog": "JellyTrending zeigt Bilder: das Plugin-Logo fuer den Kanal und das Vorschaubild des aktuell ersten Videos fuer jede Kategorie. Trending-Listen werden 30 Minuten zwischengespeichert."
       }
     ],
-    "owner": "local",
-    "guid": "c3d4e5f6-a7b8-9012-cdef-012345678901"
+    "name": "JellyTubbing"
   }
 ]
